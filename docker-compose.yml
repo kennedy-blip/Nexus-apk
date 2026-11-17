@@ -1,0 +1,132 @@
+# =============================================================================
+# NexusAPK Studio — local development stack
+# =============================================================================
+# Brings up every moving part on one machine:
+#
+#   redroid-doc   Android 13 container with binderfs, ADB on :5555
+#   adb-proxy     TCP adb bridge published on the host (:5556)
+#   scrcpy-web    ws-scrcpy H.264 bridge -> WebRTC/WS for the playground
+#   orchestrator  FastAPI container lifecycle API (:8000)
+#
+# Requirements
+#   * Linux host with the binder + ashmem kernel modules
+#     (Ubuntu: sudo apt install linux-modules-extra-$(uname -r) && modprobe binder_linux)
+#   * Docker Engine with Compose v2, privileged containers allowed
+#   * An ADB-enabled environment: `adb devices` must be able to see the container
+#
+# Quick start
+#   docker compose up -d redroid-doc
+#   docker compose exec redroid-doc sh -c 'adb connect localhost:5555'
+#   docker compose up -d scrcpy-web orchestrator
+#
+# NOTE: macOS and Windows cannot provide binderfs. Use a Linux VM/host (or a
+# cloud worker node) for real redroid sessions; the Next.js app falls back to
+# its built-in browser simulator everywhere else.
+# =============================================================================
+
+name: nexusapk
+
+services:
+  # ---------------------------------------------------------------------------
+  # Android 13 in a container
+  # ---------------------------------------------------------------------------
+  redroid-doc:
+    image: redroid/redroid:13.0.0_64only-latest
+    container_name: nexus-redroid-dev
+    privileged: true
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    # redroid needs ~4 vCPU / 6 GB to behave like a real handset
+    cpus: "4.0"
+    mem_limit: 6g
+    shm_size: 2g
+    ports:
+      - "5555:5555" # adb
+    volumes:
+      # binderfs must exist on the host: `sudo modprobe binder_linux`
+      - /dev/binderfs:/dev/binderfs
+    command:
+      - androidboot.redroid_width=1080
+      - androidboot.redroid_height=2400
+      - androidboot.redroid_dpi=420
+      - androidboot.redroid_fps=60
+      - androidboot.redroid_gpu_mode=guest
+      - androidboot.use_memfd=true
+      - androidboot.redroid_net_ndns=1
+    healthcheck:
+      test: ["CMD-SHELL", "adb devices | grep -q emulator || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # adb bridge — gives the orchestrator a stable TCP endpoint
+  # ---------------------------------------------------------------------------
+  adb-proxy:
+    image: alpine/socat:latest
+    container_name: nexus-adb-proxy
+    restart: unless-stopped
+    depends_on:
+      redroid-doc:
+        condition: service_started
+    command: TCP-LISTEN:5556,fork,reuseaddr TCP:redroid-doc:5555
+    ports:
+      - "5556:5556"
+
+  # ---------------------------------------------------------------------------
+  # scrcpy → WebRTC / WebSocket bridge
+  # ---------------------------------------------------------------------------
+  scrcpy-web:
+    # ws-scrcpy exposes an H.264 decoder pipeline over websockets; the browser
+    # consumes it through the same control protocol used by our simulator.
+    image: ghcr.io/netbirdio/ws-scrcpy:latest
+    container_name: nexus-scrcpy-web
+    restart: unless-stopped
+    depends_on:
+      - adb-proxy
+    environment:
+      ADB_HOST: adb-proxy
+      ADB_PORT: "5556"
+      WS_SCRCPY_PORT: "8001"
+      # keep the encoder light-weight for shared dev machines
+      VIDEO_BIT_RATE: "4000000"
+      MAX_FPS: "60"
+    ports:
+      - "8001:8001"
+
+  # ---------------------------------------------------------------------------
+  # FastAPI orchestrator
+  # ---------------------------------------------------------------------------
+  orchestrator:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nexus-orchestrator
+    restart: unless-stopped
+    depends_on:
+      - adb-proxy
+    environment:
+      NEXUS_BACKEND_TOKEN: ${NEXUS_BACKEND_TOKEN:-dev-token-change-me}
+      NEXUS_DOCKER_HOST: unix:///var/run/docker.sock
+      NEXUS_REDROID_IMAGE: redroid/redroid:13.0.0_64only-latest
+      NEXUS_ADB_PORT_START: "5600"
+      NEXUS_ADB_PORT_END: "5699"
+      NEXUS_SCRCPY_WS_BASE: ws://localhost:8001
+      NEXUS_WEBRTC_BASE: http://localhost:8001
+      NEXUS_SESSION_TTL_SECONDS: "900"
+      NEXUS_MAX_CONCURRENT_SESSIONS: "4"
+      NEXUS_TMP_DIR: /var/lib/nexus-sessions
+      NEXUS_SIMULATE_WHEN_NO_DOCKER: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      # the orchestrator spawns sibling containers, so it needs the socket
+      - /var/run/docker.sock:/var/run/docker.sock
+      - nexus-session-tmp:/var/lib/nexus-sessions
+      # lets the container call the host adb binary for `adb install`
+      - /usr/bin/adb:/usr/bin/adb:ro
+
+volumes:
+  nexus-session-tmp:

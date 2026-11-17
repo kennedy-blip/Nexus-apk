@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next.js
+.next/
+out/
+build/
+dist/
+next-env.d.ts
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+mypy_cache/
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+.backend.env
+
+# misc
+.DS_Store
+*.log
+npm-debug.log*
+coverage/
+.turbo/
+.vercel
+*.tsbuildinfo
+
+# local redroid artefacts
+backend/tmp/
