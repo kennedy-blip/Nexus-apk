@@ -68,15 +68,22 @@ export async function POST(request: Request) {
 
   // Recycle a live session for this APK instead of stacking containers. A NULL
   // expires_at means "no lease" and is just as live as a future timestamp.
-  const { data: existing } = await supabase
+  //
+  // The null-or-future test is done here rather than in PostgREST's `or()`:
+  // an ISO timestamp contains the dots and colons that filter syntax treats as
+  // separators, so pushing it into the query is needlessly fragile.
+  const { data: candidates } = await supabase
     .from("sessions")
     .select("*")
     .eq("apk_id", apk.id)
     .in("state", ["pending", "provisioning", "installing", "running"])
-    .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
     .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
+
+  const nowMs = Date.now();
+  const existing = (candidates ?? []).find(
+    (row) => !row.expires_at || new Date(row.expires_at).getTime() > nowMs,
+  );
 
   if (existing) {
     return NextResponse.json({ session: existing as SessionRecord, reused: true });
