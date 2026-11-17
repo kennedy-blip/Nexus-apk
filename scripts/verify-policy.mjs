@@ -64,6 +64,29 @@ for (const [raw, expected] of [
   check(`expiryForTtl(${label}) is ~${expected}s out`, delta !== null && Math.abs(delta - expected) <= 2, true);
 }
 
+/* A signed-in session falls back to the simulator when no orchestrator is
+ * configured. That is a product fallback, NOT the demo tour, so it must stay
+ * unlimited — this is the regression that put a 15 minute countdown in front of
+ * signed-in users. Only an explicit `simulate: true` (the /demo path) is bounded.
+ */
+withTtl(undefined);
+const scenarios = [
+  { label: "signed in, simulator fallback", simulate: false, orchestrator: false },
+  { label: "signed in, real container", simulate: false, orchestrator: true },
+];
+
+for (const scenario of scenarios) {
+  const isDemoTour = scenario.simulate === true;
+  const ttl = isDemoTour ? DEMO_SESSION_TTL_SECONDS : sessionTtlSeconds();
+  check(`${scenario.label}: no lease`, expiryForTtl(ttl), null);
+}
+
+{
+  // The /demo path always carries a lease.
+  const demoExpiry = expiryForTtl(DEMO_SESSION_TTL_SECONDS);
+  check("demo tour: has a lease", demoExpiry !== null, true);
+}
+
 /* The demo tour is the only built-in bound, and it must not leak into the app. */
 withTtl(undefined);
 check("DEMO_SESSION_TTL_SECONDS", DEMO_SESSION_TTL_SECONDS, 15 * 60);

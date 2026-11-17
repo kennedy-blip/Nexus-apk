@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { AmbientBackground } from "@/components/ui/background";
 import { ToastProvider } from "@/components/ui/toast";
+import { siteUrl } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
     "Upload an APK and run it instantly in a cloud Android device. WebRTC streaming, real touch input, zero installs.",
   applicationName: "NexusAPK Studio",
   keywords: ["APK", "Android emulator", "cloud phone", "WebRTC", "redroid", "app testing"],
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(siteUrl()),
   openGraph: {
     title: "NexusAPK Studio",
     description: "Cloud-native Android playground for your APKs.",

@@ -36,6 +36,9 @@ jobs:
           # simulator when Supabase/orchestrator env vars are absent.
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
+      - name: Session policy assertions
+        run: npm run verify:policy
+
   backend:
     name: Orchestrator (pytest)
     runs-on: ubuntu-latest

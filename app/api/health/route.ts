@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { orchestratorConfig, orchestratorHealth } from "@/lib/backend";
-import { createAdminClient, isAdminConfigured } from "@/lib/supabase/server";
+import { adminKey, createAdminClient, isAdminConfigured } from "@/lib/supabase/server";
+import { sessionsExpire, sessionTtlSeconds } from "@/lib/session-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,6 +59,8 @@ export async function GET() {
         database,
         databaseDetail,
         storage: process.env.NEXUS_APK_BUCKET ?? "apks",
+        privilegedKey: adminKey() ? (adminKey()!.startsWith("sb_secret_") ? "publishable+secret" : "service_role-jwt") : "missing",
+        sessionLease: sessionsExpire() ? `${sessionTtlSeconds()}s` : "unlimited",
         orchestrator: orchestrator.ok ? "ready" : "unavailable",
         orchestratorDetail: orchestrator.detail ?? null,
         containers: orchestrator.containers ?? null,

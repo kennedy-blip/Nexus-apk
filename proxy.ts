@@ -4,8 +4,11 @@ import { createServerClient } from "@supabase/ssr";
 /**
  * Refreshes the Supabase auth cookie on every navigation and guards
  * authenticated areas. Kept dependency-light so it stays edge-safe.
+ *
+ * Next 16 renamed the `middleware` file convention to `proxy`; the old name
+ * still runs but logs a deprecation warning, so this file uses the new one.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

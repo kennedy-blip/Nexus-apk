@@ -260,14 +260,34 @@ rollback;
 npm run typecheck         # strict TS across app + components + lib
 npm run lint              # eslint (next core-web-vitals + typescript)
 npm run build             # production build (all routes)
-cd backend && pytest      # 24 orchestrator + streaming tests
+npm run verify:policy     # 34 assertions on the session-limit policy
+cd backend && pytest      # 28 orchestrator + streaming tests
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, build, pytest and a
-Docker build of the orchestrator image on every push.
+Need a network and real credentials:
 
-Both suites pass in this repo; the orchestrator tests run without Docker by
-exercising the simulator fallback path.
+```bash
+# Live smoke test against a deployment: public surface, /api/health,
+# anonymous rejection, password sign-in, RLS scoping, storage write,
+# cross-user isolation.
+SITE_URL=https://nexusapk-studio.vercel.app \
+SUPABASE_URL=https://<ref>.supabase.co \
+SUPABASE_ANON_KEY=<publishable> \
+SMOKE_EMAIL=you@example.com SMOKE_PASSWORD='…' \
+npm run verify:live
+
+# Database-level smoke test (bucket privacy, signed URLs, triggers, cascade).
+SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… SUPABASE_ANON_KEY=… \
+SEED_USER_ID=<uuid> npm run verify:supabase
+```
+
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, build, `verify:policy`,
+pytest and a Docker build of the orchestrator image on every push.
+
+All offline suites pass in this repo; the orchestrator tests run without Docker
+by exercising the simulator fallback path. The two `verify:*` scripts that need
+Supabase cannot run in the development sandbox (no outbound TLS), so they are
+meant for a networked machine.
 
 ## Notes and limits
 

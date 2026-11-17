@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { StatusPill } from "@/components/ui/status-pill";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function SessionsPage() {
   const supabase = await createClient();
 
-  const [{ data: sessions }, { data: apks }] = await Promise.all([
+  const [sessionsResult, apksResult] = await Promise.all([
     supabase
       .from("sessions")
       .select("*")
@@ -19,6 +20,32 @@ export default async function SessionsPage() {
       .limit(50),
     supabase.from("apks").select("id, display_name"),
   ]);
+
+  const { data: sessions, error: sessionsError } = sessionsResult;
+  const { data: apks, error: apksError } = apksResult;
+
+  // A failed query must not render as "no sessions yet" — that reads like data
+  // loss and hides a broken grant or an expired session.
+  const failure = sessionsError ?? apksError;
+  if (failure) {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8">
+        <div className="rounded-2xl border border-amber-400/25 bg-amber-500/[0.06] p-6">
+          <h2 className="flex items-center gap-2 text-[14px] font-semibold text-amber-200">
+            <AlertTriangle className="h-4 w-4" />
+            Could not load sessions
+          </h2>
+          <p className="mt-2 text-[12.5px] leading-relaxed text-zinc-400">
+            The database rejected the request, so this is not an empty history.
+          </p>
+          <pre className="mt-3 overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 font-mono text-[11.5px] text-rose-200">
+            {failure.code ? `${failure.code}: ` : ""}
+            {failure.message}
+          </pre>
+        </div>
+      </div>
+    );
+  }
 
   const names = new Map(
     ((apks ?? []) as Pick<ApkRecord, "id" | "display_name">[]).map((a) => [

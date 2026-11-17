@@ -90,11 +90,16 @@ export async function POST(request: Request) {
   }
 
   // Signed-in accounts are unrestricted: no lease unless an operator opted in.
-  // The demo (simulate without a session) keeps its bounded 15 minute tour.
+  //
+  // "Simulated" is NOT the same as "demo". A signed-in user with no orchestrator
+  // configured still gets the canvas simulator, but that is a product fallback,
+  // not a limited tour — so it must not inherit the demo's 15 minute lease.
+  // Only an explicit `simulate: true` (the /demo path) is bounded.
   const configuredTtl = sessionTtlSeconds();
-  const simulated = body.simulate === true || !orchestratorConfig().configured;
-  const ttlSeconds = simulated
-    ? (configuredTtl ?? DEMO_SESSION_TTL_SECONDS)
+  const wantsSimulator = body.simulate === true || !orchestratorConfig().configured;
+  const isDemoTour = body.simulate === true;
+  const ttlSeconds = isDemoTour
+    ? DEMO_SESSION_TTL_SECONDS
     : configuredTtl;
   const expiresAt = expiryForTtl(ttlSeconds);
 
@@ -136,7 +141,7 @@ export async function POST(request: Request) {
     // APK, so cap it: indefinite sessions must not mint indefinite URLs.
     .createSignedUrl(apk.storage_path, Math.min(ttlSeconds ?? 3600, 3600));
 
-  if (simulated) {
+  if (wantsSimulator) {
     await log(
       "warn",
       "No orchestrator configured — launching the interactive browser simulator.",
@@ -189,9 +194,10 @@ export async function POST(request: Request) {
       apk_filename: apk.storage_path.split("/").pop() ?? "app.apk",
       package_name: apk.package_name,
       device_profile: deviceProfile,
-      // The worker requires a concrete lease; give it a long one for unbounded
-      // sessions so its own watchdog never kills a live container mid-use.
-      ttl_seconds: ttlSeconds ?? 24 * 60 * 60,
+      // The worker's request model requires a concrete lease (<= 86400s). For an
+      // unbounded session send the full-day ceiling so its watchdog never kills
+      // a live container mid-use; the web layer still stores expires_at = null.
+      ttl_seconds: ttlSeconds ?? 86_400,
     });
 
     // Swap the raw backend endpoints for browser-safe ones (same-origin proxy

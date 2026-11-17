@@ -32,23 +32,45 @@ export async function createClient() {
   );
 }
 
-/** Privileged client — bypasses RLS. SERVER ONLY, never import in a client file. */
-export function createAdminClient() {
+/**
+ * The privileged key, if one is configured.
+ *
+ * Accepts both key generations: the project publishes a legacy `service_role`
+ * JWT and a newer `sb_secret_…` key, and either grants full access.
+ */
+export function adminKey(): string | null {
   const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_SECRET_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+    process.env.SUPABASE_SECRET_KEY?.trim();
 
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    key,
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
+  return key && key.length > 0 ? key : null;
+}
+
+/**
+ * Privileged client — bypasses RLS. SERVER ONLY, never import in a client file.
+ *
+ * Throws when no privileged key is configured instead of quietly falling back
+ * to the anon key: an anon "admin" client silently returns empty result sets
+ * and failed writes, which is far harder to diagnose than a loud error.
+ * Callers that can degrade should check `isAdminConfigured()` first.
+ */
+export function createAdminClient() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL is not configured");
+  }
+
+  const key = adminKey();
+  if (!key) {
+    throw new Error(
+      "A privileged Supabase key is required (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY)",
+    );
+  }
+
+  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 export function isAdminConfigured() {
-  return Boolean(
-    process.env.SUPABASE_SERVICE_ROLE_KEY &&
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-  );
+  return Boolean(adminKey() && process.env.NEXT_PUBLIC_SUPABASE_URL);
 }
