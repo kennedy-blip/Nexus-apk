@@ -155,6 +155,7 @@ transport-specific branches.
 | `GET` | `/api/stream/[id]/frames` | Same-origin MJPEG device feed |
 | `POST` | `/api/stream/[id]/control` | Input frame relay (cookie-auth) |
 | `GET` | `/api/cron/reap` | Reap expired sessions (`CRON_SECRET`) |
+| `DELETE` | `/api/account` | Self-service account + storage purge |
 | `GET` | `/api/health` | Subsystem readiness, never leaks secrets |
 
 Orchestrator endpoints: `POST /api/session/start`, `POST /api/session/stop`,
@@ -176,6 +177,50 @@ Orchestrator endpoints: `POST /api/session/start`, `POST /api/session/stop`,
 | `NEXUS_REDROID_IMAGE` | worker | `redroid/redroid:13.0.0_64only-latest` |
 | `NEXUS_ADB_PORT_START` / `_END` | worker | `5555` / `5699` |
 | `NEXUS_MAX_CONCURRENT_SESSIONS` | worker | `8` |
+
+## Deployed environment
+
+Production runs on Vercel, project **nexusapk-studio**
+(`prj_BU6jZ4LFC0c8bpDaURfIESntNtdR`), linked to `kennedy-blip/Nexus-apk` with
+root directory `/` and framework preset Next.js.
+
+* Production URL: `https://nexusapk-studio.vercel.app`
+* Branch previews deploy from `arena/*` refs.
+* `vercel.json` registers the reaper cron (`/api/cron/reap`, `0 3 * * *`) and
+  raises `maxDuration` for the stream routes.
+* With the default deployment protection the project is private; disable SSO
+  protection in *Project → Settings → Deployment Protection* before sharing the
+  URL publicly.
+
+Supabase auth is configured with the deployment's callback URLs:
+
+```
+https://nexusapk-studio.vercel.app/auth/callback
+http://localhost:3000/auth/callback
+```
+
+GitHub OAuth is enabled on the Supabase project, so "Continue with GitHub"
+works on both the deployed and local origins.
+
+### Table privileges are not optional
+
+`0001_nexusapk_core.sql` creates tables and policies but the project's `public`
+default ACL only handed `anon`/`authenticated` `TRUNCATE, REFERENCES, TRIGGER`.
+Policies without grants mean every PostgREST request fails with
+`42501 permission denied for table apks`, which surfaces in the UI as an empty
+library. `0002_nexusapk_grants.sql` fixes this; apply it after the schema
+migration on any new project, and after creating tables by hand in the SQL
+editor.
+
+Verify with a real user context rather than the dashboard:
+
+```sql
+begin;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"<user-uuid>","role":"authenticated"}';
+select count(*) from public.apks;   -- own rows only
+rollback;
+```
 
 ## Verification
 

@@ -46,6 +46,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirect);
   }
 
+  // Password recovery must stay reachable whether or not a session exists.
+  if (path.startsWith("/auth/reset")) return response;
+
   if (path === "/login" && user) {
     const redirect = request.nextUrl.clone();
     redirect.pathname = "/dashboard";

@@ -29,7 +29,9 @@ export function AuthPanel({
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [pending, setPending] = useState<null | "email" | "github" | "magic">(null);
+  const [pending, setPending] = useState<
+    null | "email" | "github" | "magic" | "recovery"
+  >(null);
   const [notice, setNotice] = useState<string | null>(error);
 
   // Deep-link: /login?provider=github kicks off OAuth straight away.
@@ -92,6 +94,26 @@ export function AuthPanel({
     }
     router.push(next);
     router.refresh();
+  }
+
+  async function handleRecovery() {
+    if (!configured) return;
+    if (!email) {
+      setNotice("Enter your email first, then choose \"Forgot password\".");
+      return;
+    }
+    setPending("recovery");
+    const supabase = createClient();
+    const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+    });
+    setPending(null);
+    if (recoveryError) {
+      setNotice(recoveryError.message);
+      return;
+    }
+    toast.success("Recovery link sent", `Check ${email} to set a new password.`);
+    setNotice("Recovery link sent — it expires in one hour.");
   }
 
   async function handleMagicLink() {
@@ -185,8 +207,19 @@ export function AuthPanel({
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-[11.5px] font-medium uppercase tracking-[0.1em] text-zinc-500">
-              Password
+            <span className="mb-1.5 flex items-center justify-between">
+              <span className="text-[11.5px] font-medium uppercase tracking-[0.1em] text-zinc-500">
+                Password
+              </span>
+              {mode === "signin" && (
+                <button
+                  type="button"
+                  onClick={handleRecovery}
+                  className="text-[11px] font-medium text-indigo-300 transition-colors hover:text-cyan-300"
+                >
+                  Forgot password?
+                </button>
+              )}
             </span>
             <input
               type="password"

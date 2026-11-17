@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "backend": "cd backend && uvicorn app.main:app --reload --port 8000"
+    "backend": "cd backend && uvicorn app.main:app --reload --port 8000",
+    "verify:supabase": "node scripts/verify-supabase.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
