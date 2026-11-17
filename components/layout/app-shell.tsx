@@ -78,8 +78,7 @@ export function AppShell({
               {profile.plan === "free" ? "Free tier" : profile.plan}
             </div>
             <p className="mt-1.5 text-[12px] leading-relaxed text-zinc-500">
-              30 stream minutes / month. Sessions auto-reap after 15 idle
-              minutes.
+              Unlimited APKs and device time. Sessions run until you end them.
             </p>
           </div>
         </div>

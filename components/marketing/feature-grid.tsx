@@ -34,7 +34,7 @@ const features = [
   {
     icon: Gauge,
     title: "Warm-node scheduling",
-    copy: "Containers are placed on pre-warmed Docker hosts and reaped automatically after 15 idle minutes.",
+    copy: "Containers are placed on pre-warmed Docker hosts, so a session boots in seconds and stays up until you end it.",
     span: "sm:col-span-2",
   },
   {

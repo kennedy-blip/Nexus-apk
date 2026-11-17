@@ -122,20 +122,28 @@ export function PlaygroundView({ session, apk, initialEvents, demo = false }: Pr
   }, [state.id, lastEventId, demo]);
 
   /* ---------------- timer ---------------- */
-  const [remaining, setRemaining] = useState(() =>
-    Math.max(0, Math.floor((new Date(state.expires_at).getTime() - Date.now()) / 1000)),
-  );
+  // A signed-in session has no lease (expires_at === null), so there is nothing
+  // to count down and the toolbar shows elapsed uptime instead. Only a bounded
+  // lease — an operator-configured TTL or the demo tour — shows time remaining.
   const [uptime, setUptime] = useState(() =>
     Math.max(0, Math.floor((Date.now() - new Date(state.started_at).getTime()) / 1000)),
   );
 
+  const [remaining, setRemaining] = useState<number | null>(() =>
+    state.expires_at
+      ? Math.max(0, Math.floor((new Date(state.expires_at).getTime() - Date.now()) / 1000))
+      : null,
+  );
+
   useEffect(() => {
     const timer = setInterval(() => {
-      setRemaining(
-        Math.max(0, Math.floor((new Date(state.expires_at).getTime() - Date.now()) / 1000)),
-      );
       setUptime(
         Math.max(0, Math.floor((Date.now() - new Date(state.started_at).getTime()) / 1000)),
+      );
+      setRemaining(
+        state.expires_at
+          ? Math.max(0, Math.floor((new Date(state.expires_at).getTime() - Date.now()) / 1000))
+          : null,
       );
     }, 1000);
     return () => clearInterval(timer);
@@ -325,6 +333,7 @@ export function PlaygroundView({ session, apk, initialEvents, demo = false }: Pr
 
           <ControlToolbar
             remaining={remaining}
+            uptime={uptime}
             rotation={stream.rotation}
             fullscreen={fullscreen}
             deviceProfile={deviceProfile}
@@ -430,13 +439,13 @@ export function PlaygroundView({ session, apk, initialEvents, demo = false }: Pr
             </div>
           ) : (
             <a
-              href={`/api/apks/${apk.id}`}
+              href={`/api/apks/${apk.id}?download=1`}
               target="_blank"
               rel="noreferrer"
               className="glass-subtle inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[12px] text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-white"
             >
               <Download className="h-3.5 w-3.5" />
-              Get signed APK URL
+              Download APK
             </a>
           )}
         </aside>

@@ -135,3 +135,79 @@ def test_mjpeg_conflicts_without_container(client):
     token = issue_stream_token("test-token", "sess-mjpeg", ttl_seconds=60)
     response = client.get(f"/api/stream/sess-mjpeg/mjpeg?token={token}")
     assert response.status_code in {409, 404}
+
+
+# --- lease policy -----------------------------------------------------------
+#
+# Signed-in sessions have no lease. Only an explicit TTL sets a deadline, and a
+# lease-free session is reclaimed solely for abandonment, never by the clock.
+
+
+def test_session_without_lease_never_expires():
+    from app.docker_service import Session
+    from app.models import DeviceProfile
+
+    session = Session(
+        session_id="session-nolease",
+        apk_url="https://example.test/app.apk",
+        apk_filename="app.apk",
+        package_name="com.example",
+        device_profile=DeviceProfile.PHONE,
+    )
+    assert session.expires_at is None
+    assert session.expired is False
+    assert session.ttl_seconds is None
+
+
+def test_lease_free_session_is_reclaimed_only_after_idle_grace():
+    from datetime import datetime, timedelta, timezone
+
+    from app.docker_service import Session
+    from app.models import DeviceProfile
+
+    session = Session(
+        session_id="session-idle",
+        apk_url="https://example.test/app.apk",
+        apk_filename="app.apk",
+        package_name="com.example",
+        device_profile=DeviceProfile.PHONE,
+        idle_grace_seconds=60,
+    )
+
+    session.last_touch = datetime.now(timezone.utc) - timedelta(seconds=30)
+    assert session.expired is False
+
+    session.last_touch = datetime.now(timezone.utc) - timedelta(seconds=120)
+    assert session.expired is True
+
+
+def test_touch_with_ttl_sets_and_clears_deadline():
+    from app.docker_service import Session
+    from app.models import DeviceProfile
+
+    session = Session(
+        session_id="session-touch",
+        apk_url="https://example.test/app.apk",
+        apk_filename="app.apk",
+        package_name="com.example",
+        device_profile=DeviceProfile.PHONE,
+    )
+
+    session.touch(60)
+    assert session.expires_at is not None
+    assert session.ttl_seconds == 60
+
+    session.touch(None)
+    assert session.expires_at is None
+    assert session.expired is False
+
+
+def test_start_request_accepts_a_full_day_lease():
+    from app.models import StartSessionRequest
+
+    request = StartSessionRequest(
+        session_id="session-full-day",
+        apk_url="https://example.test/app.apk",
+        ttl_seconds=86400,
+    )
+    assert request.ttl_seconds == 86400

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { heartbeatRemoteSession, orchestratorConfig } from "@/lib/backend";
+import { expiryForTtl, sessionTtlSeconds } from "@/lib/session-policy";
 
 export const runtime = "nodejs";
 
@@ -28,8 +29,9 @@ export async function POST(
 
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const ttlSeconds = Number(process.env.NEXUS_SESSION_TTL_SECONDS ?? 900);
-  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+  // with no lease configured expires_at stays NULL: there is no countdown to
+  // extend, and writing a timestamp here would silently start one.
+  const expiresAt = expiryForTtl(sessionTtlSeconds());
 
   if (session.backend_session_id && orchestratorConfig().configured) {
     try {
@@ -39,9 +41,14 @@ export async function POST(
     }
   }
 
+  const patch: Record<string, string | null> = {
+    last_heartbeat_at: new Date().toISOString(),
+  };
+  if (expiresAt !== null) patch.expires_at = expiresAt;
+
   const { data: updated } = await supabase
     .from("sessions")
-    .update({ last_heartbeat_at: new Date().toISOString(), expires_at: expiresAt })
+    .update(patch)
     .eq("id", id)
     .select("id, expires_at")
     .single();

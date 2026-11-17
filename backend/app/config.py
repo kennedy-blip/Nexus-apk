@@ -40,8 +40,10 @@ class Settings(BaseSettings):
     device_fps: int = 60
 
     # --- lifecycle ------------------------------------------------------
-    session_ttl_seconds: int = 900
-    idle_timeout_seconds: int = 900
+    # 0 means "no lease": signed-in sessions stay up until the user stops them.
+    # Set a positive value only when you want a hard capacity cap.
+    session_ttl_seconds: int = 86400
+    idle_timeout_seconds: int = 1800
     max_concurrent_sessions: int = 8
     boot_timeout_seconds: int = 180
     install_timeout_seconds: int = 180

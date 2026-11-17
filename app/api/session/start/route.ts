@@ -7,6 +7,11 @@ import {
 } from "@/lib/backend";
 import { DEVICE_PROFILES, type DeviceProfile, type SessionRecord } from "@/lib/types";
 import { buildStreamUrls } from "@/lib/stream-token";
+import {
+  DEMO_SESSION_TTL_SECONDS,
+  expiryForTtl,
+  sessionTtlSeconds,
+} from "@/lib/session-policy";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -61,13 +66,14 @@ export async function POST(request: Request) {
   }
   if (!apk) return NextResponse.json({ error: "APK not found" }, { status: 404 });
 
-  // Recycle a live session for this APK instead of stacking containers.
+  // Recycle a live session for this APK instead of stacking containers. A NULL
+  // expires_at means "no lease" and is just as live as a future timestamp.
   const { data: existing } = await supabase
     .from("sessions")
     .select("*")
     .eq("apk_id", apk.id)
     .in("state", ["pending", "provisioning", "installing", "running"])
-    .gte("expires_at", new Date().toISOString())
+    .or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -76,8 +82,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ session: existing as SessionRecord, reused: true });
   }
 
-  const ttlSeconds = Number(process.env.NEXUS_SESSION_TTL_SECONDS ?? 900);
-  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+  // Signed-in accounts are unrestricted: no lease unless an operator opted in.
+  // The demo (simulate without a session) keeps its bounded 15 minute tour.
+  const configuredTtl = sessionTtlSeconds();
+  const simulated = body.simulate === true || !orchestratorConfig().configured;
+  const ttlSeconds = simulated
+    ? (configuredTtl ?? DEMO_SESSION_TTL_SECONDS)
+    : configuredTtl;
+  const expiresAt = expiryForTtl(ttlSeconds);
 
   const { data: session, error: sessionError } = await supabase
     .from("sessions")
@@ -113,12 +125,11 @@ export async function POST(request: Request) {
   const bucket = process.env.NEXUS_APK_BUCKET ?? "apks";
   const { data: signed } = await supabase.storage
     .from(bucket)
-    .createSignedUrl(apk.storage_path, ttlSeconds + 300);
+    // A signed URL is only needed long enough for the container to pull the
+    // APK, so cap it: indefinite sessions must not mint indefinite URLs.
+    .createSignedUrl(apk.storage_path, Math.min(ttlSeconds ?? 3600, 3600));
 
-  const config = orchestratorConfig();
-  const shouldSimulate = body.simulate === true || !config.configured;
-
-  if (shouldSimulate) {
+  if (simulated) {
     await log(
       "warn",
       "No orchestrator configured — launching the interactive browser simulator.",
@@ -171,7 +182,9 @@ export async function POST(request: Request) {
       apk_filename: apk.storage_path.split("/").pop() ?? "app.apk",
       package_name: apk.package_name,
       device_profile: deviceProfile,
-      ttl_seconds: ttlSeconds,
+      // The worker requires a concrete lease; give it a long one for unbounded
+      // sessions so its own watchdog never kills a live container mid-use.
+      ttl_seconds: ttlSeconds ?? 24 * 60 * 60,
     });
 
     // Swap the raw backend endpoints for browser-safe ones (same-origin proxy

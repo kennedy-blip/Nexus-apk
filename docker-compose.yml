@@ -97,7 +97,9 @@ services:
       # recommended setup because it keeps the orchestrator private.
       # NEXUS_STREAM_PUBLIC_BASE: http://localhost:8000
       NEXUS_STREAM_FPS: "8"
-      NEXUS_SESSION_TTL_SECONDS: "900"
+      # 86400 = a full-day ceiling for the worker's own watchdog. The web layer
+      # treats signed-in sessions as unlimited and never sends a shorter lease.
+      NEXUS_SESSION_TTL_SECONDS: "86400"
       NEXUS_MAX_CONCURRENT_SESSIONS: "4"
       NEXUS_TMP_DIR: /var/lib/nexus-sessions
       NEXUS_SIMULATE_WHEN_NO_DOCKER: "true"

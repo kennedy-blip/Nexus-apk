@@ -49,20 +49,30 @@ class Session:
     work_dir: Path | None = None
     error: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    expires_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc) + timedelta(minutes=15)
-    )
+    # None means "no lease": signed-in sessions are not time-boxed and stay up
+    # until the user stops them. Only an explicit TTL (operator config or a demo
+    # tour) sets a deadline, so `expired` has nothing to enforce otherwise.
+    ttl_seconds: int | None = None
+    expires_at: datetime | None = None
     last_touch: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     simulated: bool = False
+    # Abandoned lease-free sessions are reclaimed after this long without a
+    # heartbeat, which keeps a closed tab from pinning a container forever.
+    idle_grace_seconds: int = 1800
 
     @property
     def expired(self) -> bool:
+        if self.expires_at is None:
+            # No wall-clock deadline; reclaim only genuinely abandoned devices.
+            idle_for = datetime.now(timezone.utc) - self.last_touch
+            return idle_for > timedelta(seconds=self.idle_grace_seconds)
         return datetime.now(timezone.utc) >= self.expires_at
 
-    def touch(self, ttl_seconds: int) -> None:
+    def touch(self, ttl_seconds: int | None) -> None:
         now = datetime.now(timezone.utc)
         self.last_touch = now
-        self.expires_at = now + timedelta(seconds=ttl_seconds)
+        self.ttl_seconds = ttl_seconds
+        self.expires_at = None if ttl_seconds is None else now + timedelta(seconds=ttl_seconds)
 
 
 class DockerUnavailable(RuntimeError):
@@ -159,6 +169,7 @@ class DockerService:
                 apk_filename=request.apk_filename,
                 package_name=request.package_name,
                 device_profile=request.device_profile,
+                ttl_seconds=request.ttl_seconds,
                 expires_at=datetime.now(timezone.utc)
                 + timedelta(seconds=request.ttl_seconds),
             )

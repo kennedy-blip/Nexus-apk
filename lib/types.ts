@@ -47,7 +47,8 @@ export interface SessionRecord {
   simulated: boolean;
   error_message: string | null;
   started_at: string;
-  expires_at: string;
+  /** null = no lease; a signed-in session runs until the user ends it */
+  expires_at: string | null;
   last_heartbeat_at: string;
   ended_at: string | null;
 }

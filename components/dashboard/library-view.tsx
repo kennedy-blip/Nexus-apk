@@ -76,7 +76,7 @@ export function LibraryView({
         toast.success(
           body.simulated ? "Simulator ready" : "Device provisioning",
           body.simulated
-            ? "No orchestrator configured — running the local simulator."
+            ? "Device ready — running on the interactive simulator."
             : "Your redroid container is booting.",
         );
         router.push(`/playground/${body.session.id}`);
@@ -205,7 +205,7 @@ export function LibraryView({
               {!query && (
                 <span className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-indigo-400/25 bg-indigo-500/10 px-2.5 py-1 text-[11px] text-indigo-200">
                   <Sparkles className="h-3 w-3" />
-                  First 30 streaming minutes are free
+                  Unlimited sessions on your account
                 </span>
               )}
             </motion.div>

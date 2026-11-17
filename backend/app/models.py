@@ -38,7 +38,10 @@ class StartSessionRequest(BaseModel):
     apk_filename: str = Field(default="app.apk", max_length=180)
     package_name: str | None = None
     device_profile: DeviceProfile = DeviceProfile.PHONE
-    ttl_seconds: int = Field(default=900, ge=60, le=3600)
+    # A signed-in user may run a device for as long as they like, so the ceiling
+    # is a full day rather than an hour. The web layer sends 86400 for
+    # lease-free sessions; demo/operator-levied sessions send their own TTL.
+    ttl_seconds: int = Field(default=86400, ge=60, le=86400)
 
 
 class StopSessionRequest(BaseModel):

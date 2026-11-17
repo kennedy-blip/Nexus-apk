@@ -93,13 +93,13 @@ export function ApkCard({
               className="glass-strong absolute right-0 top-9 z-30 w-44 overflow-hidden rounded-xl p-1 shadow-2xl"
             >
               <a
-                href={`/api/apks/${apk.id}`}
+                href={`/api/apks/${apk.id}?download=1`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12.5px] text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <Download className="h-3.5 w-3.5" />
-                Signed download URL
+                Download APK
               </a>
               {confirming ? (
                 <button

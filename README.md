@@ -168,7 +168,7 @@ Orchestrator endpoints: `POST /api/session/start`, `POST /api/session/stop`,
 | `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` | web | — |
 | `SUPABASE_SERVICE_ROLE_KEY` | server | — |
 | `NEXUS_BACKEND_URL` / `NEXUS_BACKEND_TOKEN` | server | — |
-| `NEXUS_SESSION_TTL_SECONDS` | web + worker | `900` |
+| `NEXUS_SESSION_TTL_SECONDS` | web + worker | unset = unlimited |
 | `NEXUS_MAX_UPLOAD_BYTES` | web | `536870912` |
 | `NEXUS_APK_BUCKET` | web | `apks` |
 | `CRON_SECRET` | server | — (required in prod) |
@@ -177,6 +177,38 @@ Orchestrator endpoints: `POST /api/session/start`, `POST /api/session/stop`,
 | `NEXUS_REDROID_IMAGE` | worker | `redroid/redroid:13.0.0_64only-latest` |
 | `NEXUS_ADB_PORT_START` / `_END` | worker | `5555` / `5699` |
 | `NEXUS_MAX_CONCURRENT_SESSIONS` | worker | `8` |
+
+## Access model
+
+Signed-in users are not time-boxed. An authenticated account gets the whole
+platform: upload, launch, full device control, keyboard bridge, screenshots and
+downloads, for as long as it needs.
+
+| | Demo (`/demo`) | Signed in |
+| --- | --- | --- |
+| Account required | no | yes |
+| Session lease | 15 minutes, counts down | **none — runs until you stop it** |
+| Device simulator | local canvas | container + MJPEG, or simulator fallback |
+| Storage / library | in-memory sample | Supabase, RLS-scoped to the owner |
+| Download APK | — | yes, signed same-origin URL |
+
+The countdown that used to appear in the toolbar was a bug: `NEXUS_SESSION_TTL_SECONDS`
+defaulted to `900`, so every session — signed in or not — received a 15 minute
+`expires_at` and the toolbar rendered the remaining time. The rule now lives in
+one module, `lib/session-policy.ts`:
+
+* no `NEXUS_SESSION_TTL_SECONDS` (the default) → `expires_at` is `NULL`, the
+  toolbar shows elapsed uptime with a `live` badge, and nothing counts down;
+* a positive value → a lease, a countdown, and the reaper reclaims on expiry;
+* the demo always keeps a 15 minute lease because it is explicitly a tour.
+
+Capacity is still protected without timers: the reaper only reclaims a *real*
+container that has sent no heartbeat for `SESSION_IDLE_GRACE_SECONDS` (30 min),
+and simulated sessions are never reaped. Assert the policy with:
+
+```bash
+npm run verify:policy
+```
 
 ## Deployed environment
 

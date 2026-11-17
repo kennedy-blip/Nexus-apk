@@ -12,6 +12,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { PlaygroundView } from "@/components/playground/playground-view";
+import { DEMO_SESSION_TTL_SECONDS } from "@/lib/session-policy";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -82,7 +83,11 @@ export function DemoWorkspace() {
           simulated: true,
           error_message: null,
           started_at: startedAt.toISOString(),
-          expires_at: new Date(startedAt.getTime() + 15 * 60_000).toISOString(),
+          // The demo is the one deliberately bounded experience: no account, no
+          // database, so the tour gets a finite lease and shows a countdown.
+          expires_at: new Date(
+            startedAt.getTime() + DEMO_SESSION_TTL_SECONDS * 1000,
+          ).toISOString(),
           last_heartbeat_at: startedAt.toISOString(),
           ended_at: null,
         };

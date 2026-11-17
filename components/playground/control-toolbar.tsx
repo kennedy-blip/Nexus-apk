@@ -14,7 +14,10 @@ import { cn, formatDuration } from "@/lib/utils";
 import type { DeviceProfile } from "@/lib/types";
 
 interface Props {
-  remaining: number;
+  /** null when the session has no lease (signed-in users are unrestricted) */
+  remaining: number | null;
+  /** elapsed seconds, shown when there is no lease to count down */
+  uptime: number;
   rotation: number;
   fullscreen: boolean;
   deviceProfile: DeviceProfile;
@@ -36,6 +39,7 @@ const devices: { id: DeviceProfile; label: string }[] = [
 /** Floating glass pill with the primary session actions. */
 export function ControlToolbar({
   remaining,
+  uptime,
   fullscreen,
   deviceProfile,
   onRotate,
@@ -46,7 +50,8 @@ export function ControlToolbar({
   onStop,
   stopping,
 }: Props) {
-  const urgent = remaining <= 60;
+  const leased = remaining !== null;
+  const urgent = leased && remaining <= 60;
 
   return (
     <motion.div
@@ -105,18 +110,21 @@ export function ControlToolbar({
 
       <span className="mx-1 h-6 w-px bg-white/10" />
 
-      {/* session timer */}
+      {/* session clock: a lease counts down, an unrestricted session counts up */}
       <span
         className={cn(
           "flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 font-mono text-[12px] tabular-nums",
-          urgent
-            ? "bg-rose-500/15 text-rose-300"
-            : "bg-white/[0.04] text-zinc-300",
+          urgent ? "bg-rose-500/15 text-rose-300" : "bg-white/[0.04] text-zinc-300",
         )}
-        title="Session time remaining before auto-reap"
+        title={
+          leased
+            ? "Session time remaining on this lease"
+            : "Session uptime — this session does not expire"
+        }
       >
         <Timer className={cn("h-3.5 w-3.5", urgent ? "text-rose-300" : "text-zinc-500")} />
-        {formatDuration(remaining)}
+        {leased ? formatDuration(remaining) : formatDuration(uptime)}
+        {!leased && <span className="text-[10px] uppercase tracking-wider text-emerald-300/80">live</span>}
       </span>
 
       <button

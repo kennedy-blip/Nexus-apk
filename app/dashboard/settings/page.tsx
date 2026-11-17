@@ -3,6 +3,7 @@ import { getProfile } from "@/lib/profile";
 import { GlassCard } from "@/components/ui/glass-card";
 import { formatBytes } from "@/lib/utils";
 import { DangerZone } from "@/components/settings/danger-zone";
+import { sessionTtlSeconds } from "@/lib/session-policy";
 
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -10,8 +11,14 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const profile = await getProfile();
 
+  const ttl = sessionTtlSeconds();
+
   const limits = [
-    { label: "Session lease", value: `${Number(process.env.NEXUS_SESSION_TTL_SECONDS ?? 900) / 60} minutes` },
+    {
+      label: "Session lease",
+      // Signed-in accounts are unrestricted; only ops can opt into a TTL.
+      value: ttl === null ? "Unlimited — ends when you stop" : `${Math.round(ttl / 60)} minutes`,
+    },
     {
       label: "Max APK size",
       value: formatBytes(Number(process.env.NEXUS_MAX_UPLOAD_BYTES ?? 512 * 1024 * 1024), 0),
@@ -25,7 +32,8 @@ export default async function SettingsPage() {
       <div className="mb-7">
         <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-white">Settings</h1>
         <p className="mt-1 text-[13.5px] text-zinc-500">
-          Account identity and the platform limits applied to your workspace.
+          Account identity and what applies to your workspace. Signed-in
+          sessions have no time limit; the demo tour is the only bounded view.
         </p>
       </div>
 

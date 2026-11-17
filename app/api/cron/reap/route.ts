@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient, isAdminConfigured } from "@/lib/supabase/server";
 import { orchestratorConfig, stopRemoteSession } from "@/lib/backend";
+import { SESSION_IDLE_GRACE_SECONDS } from "@/lib/session-policy";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -8,9 +9,14 @@ export const maxDuration = 60;
 /**
  * GET /api/cron/reap
  *
- * Reaps every session past its lease: stops the redroid container, marks the
- * row stopped and logs the teardown. Meant to be hit by a scheduler (Vercel
- * Cron, GitHub Actions, or the FastAPI worker's own loop).
+ * Reaps sessions that have genuinely expired: stops the redroid container,
+ * marks the row stopped and logs the teardown. Meant to be hit by a scheduler
+ * (Vercel Cron, GitHub Actions, or the FastAPI worker's own loop).
+ *
+ * Signed-in sessions normally have no lease (expires_at IS NULL) and are never
+ * touched. The one exception is abandonment: a *real* container with no
+ * heartbeat for SESSION_IDLE_GRACE_SECONDS is reaped so a closed tab cannot pin
+ * a device forever. Simulated sessions cost nothing and are left alone.
  *
  * Auth: `Authorization: Bearer $CRON_SECRET` (or `x-vercel-cron` when deployed
  * on Vercel). Refuses to run unauthenticated in production.
@@ -40,10 +46,15 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient();
   const nowIso = new Date().toISOString();
 
+  const idleCutoff = new Date(
+    Date.now() - SESSION_IDLE_GRACE_SECONDS * 1000,
+  ).toISOString();
+
   const { data: stale, error } = await supabase
     .from("sessions")
-    .select("id, owner_id, backend_session_id, state")
+    .select("id, owner_id, backend_session_id, state, expires_at, simulated")
     .in("state", ["pending", "provisioning", "installing", "running"])
+    .not("expires_at", "is", null)
     .lt("expires_at", nowIso)
     .limit(50);
 
@@ -51,9 +62,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Lease-free sessions are only reaped when they are a real container that
+  // stopped sending heartbeats, never on a wall-clock timer.
+  const { data: abandoned } = await supabase
+    .from("sessions")
+    .select("id, owner_id, backend_session_id, state, expires_at, simulated")
+    .in("state", ["pending", "provisioning", "installing", "running"])
+    .is("expires_at", null)
+    .eq("simulated", false)
+    .lt("last_heartbeat_at", idleCutoff)
+    .limit(50);
+
+  const all = (stale ?? []).concat(abandoned ?? []);
+
   const results: Array<{ id: string; stopped: boolean; detail?: string }> = [];
 
-  for (const session of stale ?? []) {
+  for (const session of all) {
     let detail: string | undefined;
     let stopped = true;
 
@@ -75,13 +99,16 @@ export async function GET(request: NextRequest) {
       })
       .eq("id", session.id);
 
+    const reason =
+      session.expires_at === null
+        ? "Abandoned (no heartbeat) — device reclaimed."
+        : "Lease expired — container reaped automatically.";
+
     await supabase.from("session_events").insert({
       session_id: session.id,
       owner_id: session.owner_id,
       level: stopped ? "info" : "warn",
-      message: stopped
-        ? "Lease expired — container reaped automatically."
-        : `Lease expired but teardown failed: ${detail}`,
+      message: stopped ? reason : `Reap requested but teardown failed: ${detail}`,
     });
 
     results.push({ id: session.id, stopped, detail });
@@ -89,7 +116,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    scanned: stale?.length ?? 0,
+    scanned: all.length,
     reaped: results.filter((r) => r.stopped).length,
     results,
     at: nowIso,

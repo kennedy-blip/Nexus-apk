@@ -153,7 +153,7 @@ export function AuthPanel({
           <p className="mt-1.5 text-[13.5px] leading-relaxed text-zinc-400">
             {mode === "signin"
               ? "Sign in to upload APKs and boot cloud devices."
-              : "Free tier includes 30 streaming minutes per month."}
+              : "Unlimited APKs, unlimited device time. No card required."}
           </p>
         </div>
 
