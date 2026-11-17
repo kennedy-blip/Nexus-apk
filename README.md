@@ -10,6 +10,7 @@ orchestrator is connected, or an interactive in-browser simulator when it isn't.
 │ · glassmorphic UI          │───────▶│ · redroid containers     │
 │ · Supabase auth / storage  │        │ · adb port allocation    │
 │ · signed URLs + RLS        │        │ · 15-min idle reaper     │
+│ · MJPEG proxy + input relay│        │ · MJPEG pump + adb input │
 └─────────────┬──────────────┘        └────────────┬─────────────┘
               │                                    │
         ┌─────▼─────┐                       ┌──────▼──────┐
@@ -67,6 +68,8 @@ orchestrator degrades to the simulator instead of failing the request.
 | Playground | `app/playground/[sessionId]`, `components/playground` | Device frame, input mapping, toolbar, console |
 | Upload pipeline | `app/api/apks` | Validate → upload → manifest parse → icon extract |
 | Session lifecycle | `app/api/session/*`, `app/api/cron/reap` | Start / poll / heartbeat / stop / reap |
+| Frame + input proxy | `app/api/stream/[id]/*` | Same-origin MJPEG pipe and input relay |
+| Streaming bridge | `backend/app/streaming.py`, `backend/app/adb.py` | Per-session frame pump, adb input translation |
 | Orchestrator client | `lib/backend.ts` | Server-only HMAC calls to FastAPI |
 | Deviceless renderer | `lib/playground/simulator.ts` | Canvas Android UI driven by the same input frames |
 | Container service | `backend/app/docker_service.py` | redroid provisioning, adb, teardown |
@@ -81,6 +84,45 @@ orchestrator degrades to the simulator instead of failing the request.
 Every table is protected by row-level security keyed on `auth.uid()`; APK
 binaries live in a **private** bucket under `<user_id>/<object_id>/` and are only
 reachable through 10-minute signed URLs.
+
+## Streaming architecture
+
+The device feed never exposes the orchestrator to the browser. Two transports,
+one contract:
+
+```
+browser <img src="/api/stream/{id}/frames">      ──▶ Next.js proxy (cookie auth)
+                                                        │ bearer token
+                                                        ▼
+                                              FastAPI /api/stream/{id}/mjpeg
+                                                        │ screencap (8 fps)
+                                                        ▼
+                                                   adb 127.0.0.1:<port>
+
+browser POST /api/stream/{id}/control            ──▶ Next.js relay
+   {type:"touch", action:"up", x, y}                    │ bearer token
+                                                        ▼
+                                              FastAPI /api/stream/{id}/input
+                                                        │
+                                                        ▼
+                                              adb shell input tap X Y
+```
+
+- **Frame pump**: one capture loop per session (`FramePump`) fans frames out to
+  N viewers, so ten people watching costs one `screencap` stream, not ten. The
+  loop is paced to `NEXUS_STREAM_FPS` and skips overlapping captures.
+- **Input**: normalised `0..1` coordinates are scaled to the live display size
+  (`wm size`) and translated to `input tap|swipe|keyevent|text`. Down/move
+  frames are collapsed — adb has no streaming touch API, so only the completed
+  gesture is sent.
+- **Auth**: `<img>` and WebSocket handshakes carry no `Authorization` header, so
+  the control plane mints an HMAC token bound to `{session_id, expiry}`
+  (`lib/stream-token.ts` ↔ `backend/app/security.py`). The same-origin proxy is
+  the default because it needs no CORS and keeps the backend private;
+  `NEXUS_STREAM_PUBLIC_URL` switches to direct signed URLs.
+- **WebRTC upgrade path**: if `NEXUS_WEBRTC_BASE` / `NEXUS_SCRCPY_WS_BASE` are
+  set, the client negotiates WebRTC and speaks the raw WebSocket protocol
+  instead; the UI is transport-agnostic (`useDeviceStream`).
 
 ## Input protocol
 
@@ -110,6 +152,8 @@ transport-specific branches.
 | `POST` | `/api/session/[id]/heartbeat` | Extend the lease |
 | `POST` | `/api/session/[id]/stop` | Destroy container, close session |
 | `GET/POST` | `/api/session/[id]/events` | Workspace console log |
+| `GET` | `/api/stream/[id]/frames` | Same-origin MJPEG device feed |
+| `POST` | `/api/stream/[id]/control` | Input frame relay (cookie-auth) |
 | `GET` | `/api/cron/reap` | Reap expired sessions (`CRON_SECRET`) |
 | `GET` | `/api/health` | Subsystem readiness, never leaks secrets |
 
@@ -127,6 +171,8 @@ Orchestrator endpoints: `POST /api/session/start`, `POST /api/session/stop`,
 | `NEXUS_MAX_UPLOAD_BYTES` | web | `536870912` |
 | `NEXUS_APK_BUCKET` | web | `apks` |
 | `CRON_SECRET` | server | — (required in prod) |
+| `NEXUS_STREAM_PUBLIC_URL` | web | — (defaults to same-origin proxy) |
+| `NEXUS_STREAM_FPS` | worker | `8` |
 | `NEXUS_REDROID_IMAGE` | worker | `redroid/redroid:13.0.0_64only-latest` |
 | `NEXUS_ADB_PORT_START` / `_END` | worker | `5555` / `5699` |
 | `NEXUS_MAX_CONCURRENT_SESSIONS` | worker | `8` |
@@ -134,10 +180,14 @@ Orchestrator endpoints: `POST /api/session/start`, `POST /api/session/stop`,
 ## Verification
 
 ```bash
-npx tsc --noEmit          # strict TS across app + components + lib
+npm run typecheck         # strict TS across app + components + lib
+npm run lint              # eslint (next core-web-vitals + typescript)
 npm run build             # production build (all routes)
-cd backend && pytest      # orchestrator API contract tests
+cd backend && pytest      # 24 orchestrator + streaming tests
 ```
+
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, build, pytest and a
+Docker build of the orchestrator image on every push.
 
 Both suites pass in this repo; the orchestrator tests run without Docker by
 exercising the simulator fallback path.
@@ -151,3 +201,6 @@ exercising the simulator fallback path.
   without GPUs — it is **not** a substitute for the container at runtime.
 - Fonts load from Google Fonts at runtime with a system-UI fallback so the build
   has no network dependency.
+- MJPEG is capture-bound: expect 8-12 fps on a modest node, which is fine for
+  app QA and demos but not for 60 fps gaming. The WebRTC path exists for that;
+  it needs a GPU node and a scrcpy bridge configured.

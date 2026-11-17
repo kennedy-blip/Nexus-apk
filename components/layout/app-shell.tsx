@@ -88,7 +88,6 @@ export function AppShell({
           <div className="flex items-center gap-2.5 rounded-xl px-2 py-2">
             <span className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-[11.5px] font-semibold text-white">
               {profile.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={profile.avatar_url}
                   alt=""

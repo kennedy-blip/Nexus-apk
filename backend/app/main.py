@@ -12,6 +12,9 @@ Endpoints (all except /healthz require `Authorization: Bearer $NEXUS_BACKEND_TOK
     POST /api/session/stop         destroy the container
     GET  /api/sessions             list active sessions
     GET  /healthz                  docker/session readiness
+
+    GET  /api/stream/{id}/mjpeg    multipart frame feed
+    WS   /api/stream/{id}/control  normalised input frames -> adb
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ from .docker_service import (
     PortExhausted,
     SessionLimitReached,
 )
+from .streaming import StreamRegistry, build_router
 from .models import (
     HealthResponse,
     SessionResponse,
@@ -50,6 +54,7 @@ logging.basicConfig(
 logger = logging.getLogger("nexus")
 
 service: DockerService | None = None
+registry: StreamRegistry | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -73,9 +78,11 @@ async def _reaper_loop(app: FastAPI, settings: Settings) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global service
+    global service, registry
     settings = get_settings()
     service = DockerService(settings)
+    registry = StreamRegistry(service, fps=settings.stream_fps)
+    app.include_router(build_router(service, registry))
 
     if not settings.backend_token:
         logger.warning(
@@ -92,6 +99,8 @@ async def lifespan(app: FastAPI):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+        if registry is not None:
+            await registry.close()
         # Graceful teardown so no orphaned containers survive a deploy.
         if service is not None:
             for session_id in list(service.sessions):
@@ -103,6 +112,12 @@ def get_service() -> DockerService:
     if service is None:  # pragma: no cover - only before startup
         raise HTTPException(status_code=503, detail="orchestrator not ready")
     return service
+
+
+def get_registry() -> StreamRegistry:
+    if registry is None:  # pragma: no cover - only before startup
+        raise HTTPException(status_code=503, detail="streaming not ready")
+    return registry
 
 
 async def require_token(
@@ -246,6 +261,7 @@ async def stop_session(request: StopSessionRequest) -> SessionResponse:
             message="no active session; teardown attempted",
         )
 
+    await get_registry().drop(request.session_id)
     await svc.stop(request.session_id)
     session.state = SessionState.STOPPED
     session.expires_at = datetime.now(timezone.utc)

@@ -28,9 +28,12 @@ export default async function SessionsPage() {
   );
 
   const rows = (sessions ?? []) as SessionRecord[];
+  // Single clock read for the whole render keeps the server output consistent
+  // (and satisfies the render-purity rule).
+  const now = new Date().getTime();
   const live = rows.filter((r) => r.state === "running").length;
   const totalMinutes = rows.reduce((sum, r) => {
-    const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
+    const end = r.ended_at ? new Date(r.ended_at).getTime() : now;
     return sum + Math.max(0, (end - new Date(r.started_at).getTime()) / 60000);
   }, 0);
 
@@ -72,7 +75,7 @@ export default async function SessionsPage() {
             </thead>
             <tbody>
               {rows.map((s) => {
-                const ended = s.ended_at ? new Date(s.ended_at).getTime() : Date.now();
+                const ended = s.ended_at ? new Date(s.ended_at).getTime() : now;
                 const mins = Math.max(0, (ended - new Date(s.started_at).getTime()) / 1000);
                 return (
                   <tr

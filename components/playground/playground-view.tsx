@@ -272,7 +272,6 @@ export function PlaygroundView({ session, apk, initialEvents, demo = false }: Pr
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-white/10">
             {apk.icon_path ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={`/api/assets?path=${encodeURIComponent(apk.icon_path)}`}
                 alt=""
@@ -310,8 +309,10 @@ export function PlaygroundView({ session, apk, initialEvents, demo = false }: Pr
             spec={spec}
             rotation={stream.rotation}
             isSimulated={stream.isSimulated}
+            isMjpeg={stream.isMjpeg}
             videoRef={stream.videoRef}
             canvasRef={stream.canvasRef}
+            frameImgRef={stream.frameImgRef}
             onFrame={onFrame}
             onHardware={onHardware}
             statusLabel={
@@ -466,7 +467,6 @@ export function PlaygroundView({ session, apk, initialEvents, demo = false }: Pr
               >
                 <X className="h-4 w-4" />
               </button>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={stream.screenshot}
                 alt="Device screenshot"

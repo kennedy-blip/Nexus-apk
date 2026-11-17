@@ -5,8 +5,7 @@
 #
 #   redroid-doc   Android 13 container with binderfs, ADB on :5555
 #   adb-proxy     TCP adb bridge published on the host (:5556)
-#   scrcpy-web    ws-scrcpy H.264 bridge -> WebRTC/WS for the playground
-#   orchestrator  FastAPI container lifecycle API (:8000)
+#   orchestrator  FastAPI lifecycle API + MJPEG/input streaming bridge (:8000)
 #
 # Requirements
 #   * Linux host with the binder + ashmem kernel modules
@@ -16,8 +15,8 @@
 #
 # Quick start
 #   docker compose up -d redroid-doc
-#   docker compose exec redroid-doc sh -c 'adb connect localhost:5555'
-#   docker compose up -d scrcpy-web orchestrator
+#   docker compose up -d orchestrator
+#   open http://localhost:3000/playground/<session>  (streams via :8000)
 #
 # NOTE: macOS and Windows cannot provide binderfs. Use a Linux VM/host (or a
 # cloud worker node) for real redroid sessions; the Next.js app falls back to
@@ -76,27 +75,6 @@ services:
       - "5556:5556"
 
   # ---------------------------------------------------------------------------
-  # scrcpy → WebRTC / WebSocket bridge
-  # ---------------------------------------------------------------------------
-  scrcpy-web:
-    # ws-scrcpy exposes an H.264 decoder pipeline over websockets; the browser
-    # consumes it through the same control protocol used by our simulator.
-    image: ghcr.io/netbirdio/ws-scrcpy:latest
-    container_name: nexus-scrcpy-web
-    restart: unless-stopped
-    depends_on:
-      - adb-proxy
-    environment:
-      ADB_HOST: adb-proxy
-      ADB_PORT: "5556"
-      WS_SCRCPY_PORT: "8001"
-      # keep the encoder light-weight for shared dev machines
-      VIDEO_BIT_RATE: "4000000"
-      MAX_FPS: "60"
-    ports:
-      - "8001:8001"
-
-  # ---------------------------------------------------------------------------
   # FastAPI orchestrator
   # ---------------------------------------------------------------------------
   orchestrator:
@@ -107,14 +85,18 @@ services:
     restart: unless-stopped
     depends_on:
       - adb-proxy
+    # The orchestrator spawns sibling containers through the mounted socket.
     environment:
       NEXUS_BACKEND_TOKEN: ${NEXUS_BACKEND_TOKEN:-dev-token-change-me}
       NEXUS_DOCKER_HOST: unix:///var/run/docker.sock
       NEXUS_REDROID_IMAGE: redroid/redroid:13.0.0_64only-latest
       NEXUS_ADB_PORT_START: "5600"
       NEXUS_ADB_PORT_END: "5699"
-      NEXUS_SCRCPY_WS_BASE: ws://localhost:8001
-      NEXUS_WEBRTC_BASE: http://localhost:8001
+      # Public base URL the browser uses to reach this service. Leave unset to
+      # force the same-origin Next.js proxy (/api/stream/*), which is the
+      # recommended setup because it keeps the orchestrator private.
+      # NEXUS_STREAM_PUBLIC_BASE: http://localhost:8000
+      NEXUS_STREAM_FPS: "8"
       NEXUS_SESSION_TTL_SECONDS: "900"
       NEXUS_MAX_CONCURRENT_SESSIONS: "4"
       NEXUS_TMP_DIR: /var/lib/nexus-sessions
@@ -125,8 +107,6 @@ services:
       # the orchestrator spawns sibling containers, so it needs the socket
       - /var/run/docker.sock:/var/run/docker.sock
       - nexus-session-tmp:/var/lib/nexus-sessions
-      # lets the container call the host adb binary for `adb install`
-      - /usr/bin/adb:/usr/bin/adb:ro
 
 volumes:
   nexus-session-tmp:

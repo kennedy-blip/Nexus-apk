@@ -48,9 +48,14 @@ class Settings(BaseSettings):
     reaper_interval_seconds: int = 30
 
     # --- streaming ------------------------------------------------------
-    # Base URL of the ws-scrcpy bridge (per-session path is appended).
+    # Public base URL of *this* service as reachable from the browser, used to
+    # build the per-session MJPEG + WebSocket endpoints. Leave empty to derive
+    # from the incoming request host (set it behind a proxy/tunnel).
+    stream_public_base: str | None = None
+    # Frames per second for the MJPEG pump (screencap-bound, 8 is a good mix).
+    stream_fps: int = 8
+    # Optional external scrcpy/WebRTC bridge for low-latency upgrades.
     scrcpy_ws_base: str | None = None
-    # Base URL the browser should use for the WebRTC signalling endpoint.
     webrtc_base: str | None = None
 
     # --- storage --------------------------------------------------------

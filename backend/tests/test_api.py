@@ -137,3 +137,28 @@ def test_validation_rejects_short_id(client):
         json={"session_id": "x", "apk_url": "https://example.com/a.apk"},
     )
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# streaming bridge smoke tests (simulator sessions have no adb endpoint)
+# ---------------------------------------------------------------------------
+def test_stream_stats_conflicts_for_simulated(client):
+    from app.security import issue_stream_token
+
+    client.post(
+        "/api/session/start",
+        headers=AUTH,
+        json={
+            "session_id": "sess-streaming",
+            "apk_url": "https://example.com/app.apk",
+            "apk_filename": "app.apk",
+        },
+    )
+    token = issue_stream_token("test-token", "sess-streaming", ttl_seconds=60)
+    response = client.get(f"/api/stream/sess-streaming/stats?token={token}")
+    assert response.status_code in {409, 404}
+
+
+def test_stream_stats_requires_valid_token(client):
+    response = client.get("/api/stream/sess-streaming/stats?token=bogus")
+    assert response.status_code == 401

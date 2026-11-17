@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft,
   ArrowUpRight,
   Play,
   Search,

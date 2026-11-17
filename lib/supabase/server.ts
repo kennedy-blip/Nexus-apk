@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 /**
@@ -33,7 +34,6 @@ export async function createClient() {
 
 /** Privileged client — bypasses RLS. SERVER ONLY, never import in a client file. */
 export function createAdminClient() {
-  const { createClient: createSupabaseClient } = require("@supabase/supabase-js");
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ??
     process.env.SUPABASE_SECRET_KEY ??

@@ -15,6 +15,8 @@ RUN apt-get update \
         android-sdk-platform-tools \
         curl \
         ca-certificates \
+    && (command -v adb >/dev/null 2>&1 || ln -sf /usr/lib/android-sdk/platform-tools/adb /usr/local/bin/adb) \
+    && adb version \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -445,7 +445,7 @@ export class DeviceSimulator {
     }
   }
 
-  private drawHome(now: number) {
+  private drawHome(_now: number) {
     const w = this.dw;
     const h = this.dh;
     const ctx = this.ctx;
@@ -468,7 +468,7 @@ export class DeviceSimulator {
     ctx.fillRect(0, 0, w, h);
 
     // clock widget
-    const time = formatClock(now);
+    const time = formatClock();
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(255,255,255,0.97)";
     ctx.font = `300 ${Math.round(w * 0.17)}px Inter, system-ui, sans-serif`;
@@ -697,7 +697,7 @@ export class DeviceSimulator {
     }
   }
 
-  private drawNotificationShade(now: number) {
+  private drawNotificationShade(_now: number) {
     const w = this.dw;
     const h = this.dh;
     const ctx = this.ctx;
@@ -705,7 +705,7 @@ export class DeviceSimulator {
     roundRect(ctx, w * 0.04, h * 0.04, w * 0.92, h * 0.5, w * 0.06);
     ctx.fill();
 
-    const time = formatClock(now);
+    const time = formatClock();
     ctx.fillStyle = "rgba(244,244,245,0.95)";
     ctx.font = `600 ${Math.round(w * 0.05)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = "center";
@@ -744,7 +744,7 @@ export class DeviceSimulator {
       ctx.textAlign = "left";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
       ctx.font = `500 ${Math.round(w * 0.028)}px Inter, system-ui, sans-serif`;
-      ctx.fillText(formatClock(now).time, w * 0.06, h * 0.045);
+      ctx.fillText(formatClock().time, w * 0.06, h * 0.045);
 
       // signal + battery
       ctx.fillStyle = "rgba(255,255,255,0.75)";
@@ -807,7 +807,7 @@ function roundRect(
   ctx.closePath();
 }
 
-function formatClock(now: number) {
+function formatClock() {
   const d = new Date();
   const hh = d.getHours();
   const mm = d.getMinutes().toString().padStart(2, "0");

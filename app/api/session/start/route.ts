@@ -6,6 +6,7 @@ import {
   OrchestratorError,
 } from "@/lib/backend";
 import { DEVICE_PROFILES, type DeviceProfile, type SessionRecord } from "@/lib/types";
+import { buildStreamUrls } from "@/lib/stream-token";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -173,6 +174,14 @@ export async function POST(request: Request) {
       ttl_seconds: ttlSeconds,
     });
 
+    // Swap the raw backend endpoints for browser-safe ones (same-origin proxy
+    // by default, signed public URLs when explicitly configured).
+    const browserUrls = buildStreamUrls(
+      session.id,
+      remote.stream_url ?? null,
+      remote.ws_url ?? null,
+    );
+
     const { data: updated } = await supabase
       .from("sessions")
       .update({
@@ -180,8 +189,8 @@ export async function POST(request: Request) {
         backend_session_id: remote.session_id,
         container_id: remote.container_id ?? null,
         adb_port: remote.adb_port ?? null,
-        stream_url: remote.stream_url ?? null,
-        ws_url: remote.ws_url ?? null,
+        stream_url: browserUrls.streamUrl,
+        ws_url: browserUrls.wsUrl,
       })
       .eq("id", session.id)
       .select("*")

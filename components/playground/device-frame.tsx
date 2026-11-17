@@ -15,8 +15,10 @@ interface Props {
   rotation: number;
   /** live mode renders the <video>; simulated renders the <canvas> */
   isSimulated: boolean;
+  isMjpeg?: boolean;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  frameImgRef?: React.RefObject<HTMLImageElement | null>;
   onFrame: (frame: ControlFrame) => void;
   onHardware: (action: "power" | "volume-up" | "volume-down") => void;
   statusLabel: string;
@@ -32,8 +34,10 @@ export const DeviceFrame = forwardRef<HTMLDivElement, Props>(function DeviceFram
     spec,
     rotation,
     isSimulated,
+    isMjpeg = false,
     videoRef,
     canvasRef,
+    frameImgRef,
     onFrame,
     onHardware,
     statusLabel,
@@ -217,6 +221,13 @@ export const DeviceFrame = forwardRef<HTMLDivElement, Props>(function DeviceFram
                 ref={canvasRef}
                 className="absolute inset-0 h-full w-full"
                 aria-hidden
+              />
+            ) : isMjpeg ? (
+              // MJPEG multipart feed: browsers render it natively in <img>.
+              <img
+                ref={frameImgRef}
+                alt="Live Android device stream"
+                className="absolute inset-0 h-full w-full bg-black object-contain"
               />
             ) : (
               <video

@@ -384,17 +384,43 @@ class DockerService:
             session.touch(ttl_seconds)
         return session
 
-    def streaming_urls(self, session: Session) -> tuple[str | None, str | None]:
-        """Returns (webrtc_signalling_url, websocket_control_url)."""
+    def streaming_urls(
+        self,
+        session: Session,
+        public_base: str | None = None,
+        token: str | None = None,
+    ) -> tuple[str | None, str | None]:
+        """Returns (frame_stream_url, control_socket_url) for the browser.
+
+        Prefers this service's own MJPEG + WebSocket bridge; an external
+        scrcpy/WebRTC endpoint wins when explicitly configured. A short-lived
+        signed token is appended because <img> and WebSocket handshakes cannot
+        carry an Authorization header.
+        """
         if session.simulated or session.adb_port is None:
             return None, None
 
-        stream = None
+        query = f"?token={token}" if token else ""
+
+        base = (self.settings.stream_public_base or public_base or "").rstrip("/")
+        stream = f"{base}/api/stream/{session.session_id}/mjpeg{query}" if base else None
+
         if self.settings.webrtc_base:
-            stream = f"{self.settings.webrtc_base.rstrip('/')}/stream/{session.session_id}"
+            stream = (
+                f"{self.settings.webrtc_base.rstrip('/')}/stream/"
+                f"{session.session_id}{query}"
+            )
 
         ws = None
-        if self.settings.scrcpy_ws_base:
-            ws = f"{self.settings.scrcpy_ws_base.rstrip('/')}/{session.container_id[:12]}"
+        if base:
+            scheme = "wss" if base.startswith("https") else "ws"
+            host = base.split("://", 1)[-1]
+            ws = f"{scheme}://{host}/api/stream/{session.session_id}/control{query}"
+
+        if self.settings.scrcpy_ws_base and session.container_id:
+            ws = (
+                f"{self.settings.scrcpy_ws_base.rstrip('/')}/"
+                f"{session.container_id[:12]}{query}"
+            )
 
         return stream, ws

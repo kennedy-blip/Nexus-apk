@@ -43,7 +43,6 @@ export function ApkCard({
         {/* icon */}
         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-white/10 shadow-[0_8px_20px_-8px_rgba(0,0,0,0.9)]">
           {apk.icon_path ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={`/api/assets?path=${encodeURIComponent(apk.icon_path)}`}
               alt=""

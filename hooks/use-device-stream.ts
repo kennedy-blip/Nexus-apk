@@ -5,7 +5,6 @@ import { DeviceSimulator } from "@/lib/playground/simulator";
 import {
   encodeFrame,
   type ControlFrame,
-  type StreamMode,
   type StreamStatus,
 } from "@/lib/playground/protocol";
 
@@ -38,12 +37,16 @@ export function useDeviceStream({
 }: Options) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const frameImgRef = useRef<HTMLImageElement | null>(null);
   const simulatorRef = useRef<DeviceSimulator | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
+  const httpRelayRef = useRef<string | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const queued = useRef<ControlFrame[]>([]);
 
   const useRemote = !simulate && Boolean(streamUrl);
+  /** MJPEG feeds render into an <img>; WebRTC feeds render into a <video>. */
+  const isMjpeg = useRemote && Boolean(streamUrl?.includes("/mjpeg"));
 
   const [status, setStatus] = useState<StreamStatus>({
     mode: simulate || !streamUrl ? "simulated" : "connecting",
@@ -88,7 +91,7 @@ export function useDeviceStream({
 
   /* ---------------- remote transport ---------------- */
   useEffect(() => {
-    if (!useRemote || !streamUrl) return;
+    if (!useRemote || !streamUrl || isMjpeg) return;
 
     let cancelled = false;
 
@@ -159,11 +162,55 @@ export function useDeviceStream({
       pcRef.current?.close();
       pcRef.current = null;
     };
-  }, [useRemote, streamUrl, sessionId]);
+  }, [useRemote, streamUrl, sessionId, isMjpeg]);
+
+  /* ---------------- MJPEG transport ---------------- */
+  useEffect(() => {
+    if (!isMjpeg) return;
+    setStatus((s) => ({ ...s, mode: "connecting" }));
+    // The <img> reports load per stream start; browsers keep the multipart
+    // connection open so the first load is a good "connected" signal.
+    const img = frameImgRef.current;
+    if (!img) return;
+
+    if (img.getAttribute("src") !== streamUrl) img.src = streamUrl as string;
+
+    const onLoad = () =>
+      setStatus((s) => ({
+        ...s,
+        mode: "webrtc",
+        message: undefined,
+        // MJPEG is capture-bound; report a realistic cadence.
+        fps: 8,
+        latencyMs: 90,
+      }));
+    const onError = () =>
+      setStatus((s) => ({
+        ...s,
+        mode: "disconnected",
+        message: "Frame feed unavailable",
+      }));
+
+    img.addEventListener("load", onLoad);
+    img.addEventListener("error", onError);
+    return () => {
+      img.removeEventListener("load", onLoad);
+      img.removeEventListener("error", onError);
+    };
+  }, [isMjpeg, streamUrl]);
 
   /* ---------------- control socket ---------------- */
   useEffect(() => {
     if (!useRemote || !wsUrl) return;
+
+    // Same-origin proxy mode: `/api/stream/:id/control` is an HTTP relay, not a
+    // WebSocket, because route handlers cannot accept upgrades.
+    if (wsUrl.startsWith("/api/")) {
+      httpRelayRef.current = wsUrl;
+      return () => {
+        httpRelayRef.current = null;
+      };
+    }
 
     try {
       const socket = new WebSocket(wsUrl);
@@ -190,6 +237,25 @@ export function useDeviceStream({
 
   /* ---------------- public API ---------------- */
   const send = useCallback((frame: ControlFrame) => {
+    // HTTP relay path (same-origin proxy): one small POST per gesture.
+    // Intermediate `move` frames are dropped — adb has no streaming touch API
+    // and they would triple the request count for no fidelity gain.
+    const relay = httpRelayRef.current;
+    if (relay) {
+      if (frame.type === "touch" && frame.action === "move") {
+        simulatorRef.current?.handleFrame(frame);
+        return;
+      }
+      void fetch(relay, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(frame),
+        keepalive: true,
+      }).catch(() => undefined);
+      simulatorRef.current?.handleFrame(frame);
+      return;
+    }
+
     const socket = socketRef.current;
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(encodeFrame(frame));
@@ -217,6 +283,17 @@ export function useDeviceStream({
       return url;
     }
 
+    const img = frameImgRef.current;
+    if (img && img.naturalWidth > 0) {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext("2d")?.drawImage(img, 0, 0);
+      const url = canvas.toDataURL("image/png");
+      setScreenshot(url);
+      return url;
+    }
+
     const target = canvasRef.current;
     if (target) {
       const url = target.toDataURL("image/png");
@@ -229,6 +306,8 @@ export function useDeviceStream({
   return {
     videoRef,
     canvasRef,
+    frameImgRef,
+    isMjpeg,
     status,
     rotation,
     screenshot,
