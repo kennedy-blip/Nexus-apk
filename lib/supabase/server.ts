@@ -7,11 +7,28 @@ import { cookies } from "next/headers";
  * Safe inside Server Components, Route Handlers and Server Actions.
  */
 export async function createClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Fail with an actionable message instead of @supabase's generic
+  // "Your project's URL and Key are required", which gives no hint about which
+  // variable is missing or where it should be set.
+  if (!url || !anonKey) {
+    throw new Error(
+      `Supabase is not configured: ${[
+        !url && "NEXT_PUBLIC_SUPABASE_URL",
+        !anonKey && "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      ]
+        .filter(Boolean)
+        .join(" and ")} ${!url && !anonKey ? "are" : "is"} unset. Add it to .env.local (see .env.example) or the Vercel project's environment variables.`,
+    );
+  }
+
   const cookieStore = await cookies();
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    anonKey,
     {
       cookies: {
         getAll() {
@@ -73,4 +90,9 @@ export function createAdminClient() {
 
 export function isAdminConfigured() {
   return Boolean(adminKey() && process.env.NEXT_PUBLIC_SUPABASE_URL);
+}
+
+/** True when auth can work at all. Pages use this to degrade instead of throwing. */
+export function isSupabaseConfigured() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }

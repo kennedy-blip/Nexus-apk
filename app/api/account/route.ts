@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient, isAdminConfigured } from "@/lib/supabase/server";
+import {
+  createAdminClient,
+  createClient,
+  isAdminConfigured,
+  isSupabaseConfigured,
+} from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,6 +18,10 @@ export const maxDuration = 60;
  * phrase before calling this (see the settings view).
  */
 export async function DELETE() {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ error: "Supabase is not configured" }, { status: 503 });
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
