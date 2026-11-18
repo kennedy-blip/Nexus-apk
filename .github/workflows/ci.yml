@@ -13,6 +13,7 @@ jobs:
   web:
     name: Web (typecheck · lint · build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +43,9 @@ jobs:
   backend:
     name: Orchestrator (pytest)
     runs-on: ubuntu-latest
+    # The suite talks to the simulator only (see tests/conftest.py). If it ever
+    # starts provisioning a real container this fails fast instead of hanging.
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: backend
@@ -70,6 +74,7 @@ jobs:
   docker:
     name: Orchestrator image builds
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Build image
