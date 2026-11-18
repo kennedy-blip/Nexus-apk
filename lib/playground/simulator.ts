@@ -41,6 +41,9 @@ export interface SimulatorOptions {
   onFrame?: (info: { fps: number }) => void;
 }
 
+/** ~30 Hz ceiling when nothing is animating. */
+const IDLE_FRAME_MS = 1000 / 30;
+
 export class DeviceSimulator {
   private ctx: CanvasRenderingContext2D;
   private raf = 0;
@@ -53,6 +56,8 @@ export class DeviceSimulator {
 
   private screen: Screen = "boot";
   private bootStart = performance.now();
+  private lastPaint = 0;
+  private lastMinute = Math.floor(performance.now() / 60_000);
   private rotation = 0;
   private openApp: SimApp | null = null;
 
@@ -91,12 +96,38 @@ export class DeviceSimulator {
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   }
 
+  /**
+   * Draw loop.
+   *
+   * A static screen does not need 60 redraws a second — doing that burned a
+   * whole core redrawing an identical frame and made the whole page feel
+   * sluggish. We now draw on a ~30 Hz idle cadence and only when something is
+   * actually animating (boot, a toast, the clock face changing minute) do we run
+   * flat out. `needsFullRate()` decides which.
+   */
   start() {
     const loop = () => {
-      this.draw(performance.now());
+      const now = performance.now();
+      if (this.needsFullRate(now) || now - this.lastPaint >= IDLE_FRAME_MS) {
+        this.lastPaint = now;
+        this.draw(now);
+      }
       this.raf = requestAnimationFrame(loop);
     };
     this.raf = requestAnimationFrame(loop);
+  }
+
+  /** True while something on screen is genuinely changing every frame. */
+  private needsFullRate(now: number): boolean {
+    if (this.screen === "boot") return now - this.bootStart < 2600;
+    if (this.toastMessage && now < this.toastUntil) return true;
+    // The status-bar clock only changes once a minute; a cheap poll repaints it.
+    const minute = Math.floor(now / 60_000);
+    if (minute !== this.lastMinute) {
+      this.lastMinute = minute;
+      return true;
+    }
+    return false;
   }
 
   stop() {

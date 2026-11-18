@@ -50,9 +50,10 @@ export function useDeviceStream({
 
   const [status, setStatus] = useState<StreamStatus>({
     mode: simulate || !streamUrl ? "simulated" : "connecting",
-    fps: 0,
-    latencyMs: 0,
-    bitrateKbps: 0,
+    // Nothing has been measured yet — null renders as "—", not a fake 0.
+    fps: null,
+    latencyMs: null,
+    bitrateKbps: null,
   });
   const [rotation, setRotation] = useState(0);
   const [screenshot, setScreenshot] = useState<string | null>(null);
@@ -65,14 +66,16 @@ export function useDeviceStream({
     const sim = new DeviceSimulator(canvas, {
       appName,
       packageName,
+      // The canvas really does render at this cadence, so `fps` is measured.
+      // There is no network hop in simulator mode, so latency stays null rather
+      // than inventing a plausible-looking number.
       onFrame: ({ fps }) =>
         setStatus((s) => ({
           ...s,
           mode: "simulated",
           fps,
-          // deterministic-but-plausible numbers for the HUD
-          latencyMs: 8 + ((fps * 7) % 9),
-          bitrateKbps: 0,
+          latencyMs: null,
+          bitrateKbps: null,
         })),
     });
 
@@ -175,15 +178,37 @@ export function useDeviceStream({
 
     if (img.getAttribute("src") !== streamUrl) img.src = streamUrl as string;
 
-    const onLoad = () =>
-      setStatus((s) => ({
-        ...s,
-        mode: "webrtc",
-        message: undefined,
-        // MJPEG is capture-bound; report a realistic cadence.
-        fps: 8,
-        latencyMs: 90,
-      }));
+    // Count real frame arrivals to derive fps. An MJPEG <img> fires `load` once
+    // per part, so this is a genuine measurement rather than a hardcoded value.
+    let frames = 0;
+    let windowStart = performance.now();
+
+    const onLoad = () => {
+      frames += 1;
+      const now = performance.now();
+      const elapsed = now - windowStart;
+      if (elapsed >= 1000) {
+        const measured = Math.round((frames * 1000) / elapsed);
+        frames = 0;
+        windowStart = now;
+        setStatus((s) => ({
+          ...s,
+          mode: "webrtc",
+          message: undefined,
+          fps: measured,
+          // One-way capture latency is not observable from an <img>; the input
+          // round-trip measured by the control relay is the honest number.
+          latencyMs: httpRelayRef.current ? null : s.latencyMs,
+        }));
+        return;
+      }
+
+      setStatus((s) =>
+        s.mode === "webrtc" && s.fps !== null
+          ? s
+          : { ...s, mode: "webrtc", message: undefined },
+      );
+    };
     const onError = () =>
       setStatus((s) => ({
         ...s,
@@ -246,12 +271,21 @@ export function useDeviceStream({
         simulatorRef.current?.handleFrame(frame);
         return;
       }
+      // Measure the real round-trip of the control POST. This is the honest
+      // latency figure for proxied sessions — there is no fake fallback.
+      const started = performance.now();
       void fetch(relay, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(frame),
         keepalive: true,
-      }).catch(() => undefined);
+      })
+        .then((res) => {
+          if (!res.ok) return;
+          const rtt = Math.round(performance.now() - started);
+          setStatus((s) => ({ ...s, latencyMs: rtt }));
+        })
+        .catch(() => undefined);
       simulatorRef.current?.handleFrame(frame);
       return;
     }

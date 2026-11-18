@@ -302,9 +302,18 @@ export function PlaygroundView({ session, apk, initialEvents, demo = false }: Pr
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <StatusPill state={state.state} />
+          {/* A simulated session is NOT live: it is a canvas re-creation and the
+              APK never executes. Saying "Live" here was actively misleading. */}
+          {simulated ? (
+            <span className="flex items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              Simulated
+            </span>
+          ) : (
+            <StatusPill state={state.state} />
+          )}
           <span className="hidden rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1 font-mono text-[10.5px] text-zinc-500 md:block">
-            {simulated ? "simulator" : `adb :${state.adb_port ?? "?"}`}
+            {simulated ? "no APK execution" : `adb :${state.adb_port ?? "?"}`}
           </span>
         </div>
       </header>
@@ -346,12 +355,27 @@ export function PlaygroundView({ session, apk, initialEvents, demo = false }: Pr
             stopping={stopping}
           />
 
-          <p className="max-w-md text-center text-[11px] leading-relaxed text-zinc-600">
-            Click and drag to swipe · type to send keys · Esc maps to Back.{" "}
-            {simulated
-              ? "Running the built-in browser simulator — connect an orchestrator for real redroid streaming."
-              : "Frames arrive over WebRTC; input travels on the WebSocket bridge."}
-          </p>
+          {/* Be explicit: in simulator mode the APK is never executed, and the
+              handset on screen is a canvas re-creation of Android. Implying
+              otherwise was the single most misleading thing on this page. */}
+          {simulated ? (
+            <div className="w-full max-w-md rounded-xl border border-amber-400/20 bg-amber-500/[0.06] px-3 py-2.5 text-center">
+              <p className="text-[11.5px] leading-relaxed text-amber-100/90">
+                <strong className="font-semibold">Simulator preview.</strong> This
+                handset is drawn in the browser — your APK is not executing, so its
+                screens and data will not appear here.
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-amber-200/60">
+                Real Android needs a Linux device host running redroid. Every other
+                control — gestures, keys, screenshots, download — works today.
+              </p>
+            </div>
+          ) : (
+            <p className="max-w-md text-center text-[11px] leading-relaxed text-zinc-600">
+              Click and drag to swipe · type to send keys · Esc maps to Back. Frames
+              arrive over WebRTC; input travels on the WebSocket bridge.
+            </p>
+          )}
         </section>
 
         {/* ---------------- side rail ---------------- */}
@@ -362,11 +386,17 @@ export function PlaygroundView({ session, apk, initialEvents, demo = false }: Pr
               Telemetry
             </p>
             <div className="grid grid-cols-3 gap-2">
-              <Metric icon={Gauge} label="FPS" value={stream.status.fps.toString()} />
+              <Metric
+                icon={Gauge}
+                label="FPS"
+                value={stream.status.fps === null ? "—" : stream.status.fps.toString()}
+              />
               <Metric
                 icon={Cpu}
                 label="Latency"
-                value={`${stream.status.latencyMs}ms`}
+                value={
+                  stream.status.latencyMs === null ? "—" : `${stream.status.latencyMs}ms`
+                }
               />
               <Metric
                 icon={soundOn ? Volume2 : VolumeX}

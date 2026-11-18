@@ -47,9 +47,11 @@ export type StreamMode = "webrtc" | "simulated" | "connecting" | "disconnected";
 
 export interface StreamStatus {
   mode: StreamMode;
-  fps: number;
-  latencyMs: number;
-  bitrateKbps: number;
+  /** measured frames per second; null when nothing is being measured */
+  fps: number | null;
+  /** measured round-trip in ms; null when there is no network transport */
+  latencyMs: number | null;
+  bitrateKbps: number | null;
   message?: string;
 }
 

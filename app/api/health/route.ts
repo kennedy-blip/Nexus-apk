@@ -19,7 +19,11 @@ export async function GET() {
   const config = orchestratorConfig();
   const orchestrator = config.configured
     ? await orchestratorHealth()
-    : { ok: false, detail: "not configured" };
+    : {
+        ok: false,
+        detail:
+          "NEXUS_BACKEND_URL/NEXUS_BACKEND_TOKEN are unset — sessions run the canvas simulator and your APK does not execute. See docs/REAL_DEVICES.md",
+      };
 
   const supabaseReady = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

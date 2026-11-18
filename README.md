@@ -291,6 +291,11 @@ meant for a networked machine.
 
 ## Notes and limits
 
+- **Without a device host, your APK does not execute.** Vercel is serverless and
+  cannot run a privileged Android kernel, so `/playground` falls back to a canvas
+  re-creation of Android. The APK is stored, parsed, listed and downloadable, but
+  its real screens will not appear. The UI labels this as `Simulated` and says so
+  explicitly. See [docs/REAL_DEVICES.md](docs/REAL_DEVICES.md) to connect one.
 - redroid requires a Linux host with `binder_linux`/ashmem; macOS and Windows
   hosts cannot run real sessions (the simulator still works everywhere).
 - The simulator is a genuine state machine (launcher, app drawer, gesture

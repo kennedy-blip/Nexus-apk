@@ -73,12 +73,16 @@ export function LibraryView({
           return;
         }
 
-        toast.success(
-          body.simulated ? "Simulator ready" : "Device provisioning",
-          body.simulated
-            ? "Device ready — running on the interactive simulator."
-            : "Your redroid container is booting.",
-        );
+        if (body.simulated) {
+          // Set expectations before the user lands in a canvas that does not run
+          // their code. This is the difference between a demo and being misled.
+          toast.info(
+            "Opening the simulator",
+            "No Android host is connected yet, so your APK will not execute. Controls and download still work.",
+          );
+        } else {
+          toast.success("Device provisioning", "Your redroid container is booting.");
+        }
         router.push(`/playground/${body.session.id}`);
       } catch {
         toast.error("Network error", "Could not reach the session API.");
