@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { orchestratorConfig, orchestratorHealth } from "@/lib/backend";
-import { adminKey, createAdminClient, isAdminConfigured } from "@/lib/supabase/server";
-import { sessionsExpire, sessionTtlSeconds } from "@/lib/session-policy";
+import { createAdminClient, isAdminConfigured } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 /** Table privileges, not policies, decide whether a query is allowed at all. */
 function looksLikeMissingGrant(message: string): boolean {
@@ -12,66 +11,69 @@ function looksLikeMissingGrant(message: string): boolean {
 }
 
 /**
- * GET /api/health — control-plane readiness probe.
- * Reports which subsystems are wired without leaking any secret values.
+ * GET /api/health — readiness probe.
+ *
+ * Reports which subsystems are wired without leaking secret values. The
+ * inspector needs no orchestrator or Android host: it is pure Node HTTP, DNS
+ * and TLS, so there is no "degraded to simulator" state to report any more.
  */
 export async function GET() {
-  const config = orchestratorConfig();
-  const orchestrator = config.configured
-    ? await orchestratorHealth()
-    : {
-        ok: false,
-        detail:
-          "NEXUS_BACKEND_URL/NEXUS_BACKEND_TOKEN are unset — sessions run the canvas simulator and your APK does not execute. See docs/REAL_DEVICES.md",
-      };
-
   const supabaseReady = Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );
 
-  // Probe the database itself rather than trusting that the env vars are set.
-  // A project can have every policy in place and still reject every query with
+  // Probe the database itself rather than trusting that env vars are set. A
+  // project can have every policy in place and still reject every query with
   // `42501 permission denied`, which otherwise looks like an empty account.
   let database: "ready" | "error" | "unconfigured" = "unconfigured";
   let databaseDetail: string | null = null;
 
   if (isAdminConfigured()) {
     try {
+      // `inspections` is written on every signed-in inspection.
       const admin = createAdminClient();
-      const { error } = await admin.from("apks").select("id").limit(1);
-      if (error) {
-        database = "error";
-        databaseDetail = looksLikeMissingGrant(error.message)
-          ? `${error.code ?? "42501"}: table privileges missing — apply supabase/migrations/0002_nexusapk_grants.sql`
-          : `${error.code ?? "error"}: ${error.message}`;
-      } else {
+      const { error } = await admin.from("inspections").select("id").limit(1);
+
+      if (!error) {
         database = "ready";
+      } else if (looksLikeMissingGrant(error.message)) {
+        database = "error";
+        databaseDetail = `grants missing — apply supabase/migrations (${error.message})`;
+      } else if (/does not exist|schema cache/i.test(error.message)) {
+        database = "error";
+        databaseDetail = `table missing — apply supabase/migrations (${error.message})`;
+      } else {
+        database = "error";
+        databaseDetail = error.message;
       }
-    } catch (cause) {
+    } catch (error) {
       database = "error";
-      databaseDetail = cause instanceof Error ? cause.message : "database probe failed";
+      databaseDetail = error instanceof Error ? error.message : String(error);
     }
   }
 
-  const healthy = supabaseReady && database !== "error";
+  const status =
+    database === "error" ? "degraded" : supabaseReady ? "ok" : "unconfigured";
 
   return NextResponse.json(
     {
-      status: healthy ? "ok" : "degraded",
+      status,
+      product: "NexusScope",
       services: {
         supabase: supabaseReady ? "ready" : "unconfigured",
         database,
         databaseDetail,
-        storage: process.env.NEXUS_APK_BUCKET ?? "apks",
-        privilegedKey: adminKey() ? (adminKey()!.startsWith("sb_secret_") ? "publishable+secret" : "service_role-jwt") : "missing",
-        sessionLease: sessionsExpire() ? `${sessionTtlSeconds()}s` : "unlimited",
-        orchestrator: orchestrator.ok ? "ready" : "unavailable",
-        orchestratorDetail: orchestrator.detail ?? null,
-        containers: orchestrator.containers ?? null,
+        privilegedKey: isAdminConfigured() ? "configured" : "missing",
+        inspector: "ready",
       },
-      mode: config.configured ? "cloud" : "simulator",
+      /** Named so a reader knows the anonymous allowance is intentional. */
+      limits: {
+        anonymousInspectionsPerWindow: 5,
+        windowMinutes: 10,
+        signedIn: "unlimited",
+      },
       timestamp: new Date().toISOString(),
     },
-    { status: healthy ? 200 : 503 },
+    { status: status === "degraded" ? 503 : 200 },
   );
 }

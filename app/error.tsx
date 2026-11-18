@@ -13,7 +13,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     // In production this is where a telemetry sink (Sentry, Axiom…) hooks in.
-    console.error("[NexusAPK]", error);
+    console.error("[NexusScope]", error);
   }, [error]);
 
   return (

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-/** NexusAPK mark: an interlocked "N" built from two neon strokes. */
+/** NexusScope mark: an interlocked "N" built from two neon strokes. */
 export function Logo({
   className,
   size = 32,
@@ -48,10 +48,7 @@ export function Logo({
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn("text-[15px] font-semibold tracking-tight text-white", className)}>
-      Nexus<span className="text-gradient">APK</span>
-      <span className="ml-1.5 text-[10px] font-medium uppercase tracking-[0.22em] text-zinc-500">
-        studio
-      </span>
+      Nexus<span className="text-gradient">Scope</span>
     </span>
   );
 }

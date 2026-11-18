@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { getProfile } from "@/lib/profile";
 import { GlassCard } from "@/components/ui/glass-card";
-import { formatBytes } from "@/lib/utils";
 import { DangerZone } from "@/components/settings/danger-zone";
-import { sessionTtlSeconds } from "@/lib/session-policy";
 
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -11,19 +9,12 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const profile = await getProfile();
 
-  const ttl = sessionTtlSeconds();
-
+  // A signed-in account is unrestricted by product rule. These are stated so
+  // the user can see there is no hidden cap to hit.
   const limits = [
-    {
-      label: "Session lease",
-      // Signed-in accounts are unrestricted; only ops can opt into a TTL.
-      value: ttl === null ? "Unlimited — ends when you stop" : `${Math.round(ttl / 60)} minutes`,
-    },
-    {
-      label: "Max APK size",
-      value: formatBytes(Number(process.env.NEXUS_MAX_UPLOAD_BYTES ?? 512 * 1024 * 1024), 0),
-    },
-    { label: "Storage bucket", value: process.env.NEXUS_APK_BUCKET ?? "apks" },
+    { label: "Inspections", value: "Unlimited" },
+    { label: "History retention", value: "Never expires" },
+    { label: "Batch size", value: "20 URLs per request" },
     { label: "Plan", value: profile?.plan ?? "free" },
   ];
 
@@ -33,7 +24,7 @@ export default async function SettingsPage() {
         <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-white">Settings</h1>
         <p className="mt-1 text-[13.5px] text-zinc-500">
           Account identity and what applies to your workspace. Signed-in
-          sessions have no time limit; the demo tour is the only bounded view.
+          accounts are unrestricted; only the signed-out demo is rate-limited.
         </p>
       </div>
 
@@ -56,7 +47,7 @@ export default async function SettingsPage() {
       </GlassCard>
 
       <GlassCard className="mb-3 p-5">
-        <h2 className="mb-3 text-[13px] font-semibold text-white">Session</h2>
+        <h2 className="mb-3 text-[13px] font-semibold text-white">This device</h2>
         <form action="/auth/signout" method="post">
           <button
             type="submit"

@@ -39,8 +39,9 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isProtected =
-    path.startsWith("/dashboard") || path.startsWith("/playground");
+  // `/inspect` is public on purpose — it is the demo. Only the saved history
+  // and account settings require a session.
+  const isProtected = path.startsWith("/dashboard");
 
   if (isProtected && !user) {
     const redirect = request.nextUrl.clone();
