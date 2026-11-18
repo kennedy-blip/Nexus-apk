@@ -5,7 +5,7 @@ import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 
 export const metadata: Metadata = {
   title: "Set a new password",
-  description: "Choose a new password for your NexusAPK Studio account.",
+  description: "Choose a new password for your NexusScope account.",
 };
 
 /**

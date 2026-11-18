@@ -1,23 +1,19 @@
 {
-  "name": "nexusapk-studio",
+  "name": "nexusscope",
   "version": "1.0.0",
   "private": true,
-  "description": "Cloud-native Android APK streaming workspace \u2014 Next.js control plane + FastAPI redroid orchestrator.",
+  "description": "Link & site inspector \u2014 preview metadata, redirects, DNS, TLS, security headers and decoded payloads for any public URL.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "backend": "cd backend && uvicorn app.main:app --reload --port 8000",
-    "verify:supabase": "node scripts/verify-supabase.mjs",
-    "verify:policy": "tsx scripts/verify-policy.mjs",
-    "verify:live": "node scripts/verify-live.mjs"
+    "verify:inspect": "tsx scripts/verify-inspect.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
-    "app-info-parser": "^1.1.6",
     "clsx": "^2.1.1",
     "framer-motion": "^14.14.0",
     "lucide-react": "^1.74.0",

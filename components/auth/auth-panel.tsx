@@ -274,7 +274,7 @@ export function AuthPanel({
 
         <div className="mt-6 flex items-center justify-between border-t border-white/[0.07] pt-4 text-[12.5px]">
           <span className="text-zinc-500">
-            {mode === "signin" ? "New to NexusAPK?" : "Already have an account?"}
+            {mode === "signin" ? "New to NexusScope?" : "Already have an account?"}
           </span>
           <button
             type="button"

@@ -59,8 +59,8 @@ export function DangerZone() {
         Danger zone
       </h2>
       <p className="mt-1.5 text-[12.5px] leading-relaxed text-zinc-400">
-        Deleting your account removes every APK, its binaries in storage, all
-        session history and your profile. This cannot be undone.
+        Deleting your account removes every saved inspection, your profile and
+        your sign-in. This cannot be undone.
       </p>
 
       <AnimatePresence mode="wait">

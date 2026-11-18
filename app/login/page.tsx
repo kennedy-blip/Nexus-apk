@@ -6,7 +6,7 @@ import { AuthPanel } from "@/components/auth/auth-panel";
 
 export const metadata: Metadata = {
   title: "Sign in",
-  description: "Access your NexusAPK Studio workspace.",
+  description: "Access your NexusScope workspace.",
 };
 
 export default async function LoginPage({

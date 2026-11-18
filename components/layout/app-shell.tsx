@@ -3,15 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Activity, LayoutGrid, Settings, Sparkles, Smartphone } from "lucide-react";
+import { History, ScanLine, Settings, Sparkles } from "lucide-react";
 import { Logo, Wordmark } from "@/components/ui/logo";
 import { cn, initials } from "@/lib/utils";
 import type { Profile } from "@/lib/types";
 
 const nav = [
-  { href: "/dashboard", label: "Library", icon: LayoutGrid },
-  { href: "/dashboard/sessions", label: "Sessions", icon: Activity },
-  { href: "/dashboard/devices", label: "Devices", icon: Smartphone },
+  { href: "/inspect", label: "Inspector", icon: ScanLine },
+  { href: "/dashboard", label: "History", icon: History },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
@@ -78,7 +77,7 @@ export function AppShell({
               {profile.plan === "free" ? "Free tier" : profile.plan}
             </div>
             <p className="mt-1.5 text-[12px] leading-relaxed text-zinc-500">
-              Unlimited APKs and device time. Sessions run until you end them.
+              Unlimited inspections and storage. History never expires.
             </p>
           </div>
         </div>

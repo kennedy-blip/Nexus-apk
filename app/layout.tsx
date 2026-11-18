@@ -6,17 +6,17 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "NexusAPK Studio — Stream Android apps in your browser",
-    template: "%s · NexusAPK Studio",
+    default: "NexusScope — inspect any link's public data",
+    template: "%s · NexusScope",
   },
   description:
-    "Upload an APK and run it instantly in a cloud Android device. WebRTC streaming, real touch input, zero installs.",
-  applicationName: "NexusAPK Studio",
-  keywords: ["APK", "Android emulator", "cloud phone", "WebRTC", "redroid", "app testing"],
+    "Paste any public URL and see its preview metadata, redirect chain, DNS, TLS certificate, security headers and decoded payloads.",
+  applicationName: "NexusScope",
+  keywords: ["link inspector", "URL preview", "OpenGraph", "site audit", "TLS check", "redirect chain"],
   metadataBase: new URL(siteUrl()),
   openGraph: {
-    title: "NexusAPK Studio",
-    description: "Cloud-native Android playground for your APKs.",
+    title: "NexusScope",
+    description: "Inspect any link's public data — preview, redirects, DNS, TLS.",
     type: "website",
   },
 };
