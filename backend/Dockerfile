@@ -13,9 +13,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         android-sdk-platform-tools \
+        adb \
         curl \
         ca-certificates \
-    && (command -v adb >/dev/null 2>&1 || ln -sf /usr/lib/android-sdk/platform-tools/adb /usr/local/bin/adb) \
+    && command -v adb >/dev/null 2>&1 \
     && adb version \
     && rm -rf /var/lib/apt/lists/*
 
