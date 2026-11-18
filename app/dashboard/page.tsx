@@ -1,11 +1,27 @@
 import { AlertTriangle } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 import { HistoryView } from "@/components/dashboard/history-view";
 import type { InspectionRecord } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  if (!isSupabaseConfigured()) {
+    return (
+      <div className="rounded-2xl border border-amber-400/25 bg-amber-500/[0.06] p-6">
+        <h2 className="flex items-center gap-2 text-[14px] font-semibold text-amber-200">
+          <AlertTriangle className="h-4 w-4" />
+          Supabase is not configured
+        </h2>
+        <p className="mt-2 text-[12.5px] leading-relaxed text-zinc-400">
+          Set <code className="font-mono text-[11.5px]">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+          <code className="font-mono text-[11.5px]">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to load
+          saved history. The inspector itself works without them.
+        </p>
+      </div>
+    );
+  }
+
   const supabase = await createClient();
 
   // No `.limit()`: a signed-in account has unlimited history, so the page shows
