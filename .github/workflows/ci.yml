@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (typecheck · lint · build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build must not require real credentials; the app degrades to the
+          # simulator when Supabase/orchestrator env vars are absent.
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+
+      - name: Session policy assertions
+        run: npm run verify:policy
+
+  backend:
+    name: Orchestrator (pytest)
+    runs-on: ubuntu-latest
+    # The suite talks to the simulator only (see tests/conftest.py). If it ever
+    # starts provisioning a real container this fails fast instead of hanging.
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          NEXUS_BACKEND_TOKEN: test-token
+          NEXUS_SIMULATE_WHEN_NO_DOCKER: "true"
+        run: pytest -q
+
+      - name: Import smoke test
+        env:
+          NEXUS_BACKEND_TOKEN: test-token
+        run: python -c "import app.main; print('orchestrator imports cleanly')"
+
+  docker:
+    name: Orchestrator image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t nexus-orchestrator:ci ./backend

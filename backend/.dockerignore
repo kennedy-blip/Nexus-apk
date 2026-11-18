@@ -1,0 +1,9 @@
+# Keep the build context small: the venv and caches are host artifacts.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+tests/
+Dockerfile
+.dockerignore
